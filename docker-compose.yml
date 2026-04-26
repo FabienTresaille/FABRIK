@@ -1,0 +1,126 @@
+services:
+
+  # ============================================
+  # DATABASE — PostgreSQL 15
+  # ============================================
+  fabrik-db:
+    image: postgres:15-alpine
+    container_name: fabrik-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - fabrik_db_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - fabrik-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # BACKEND — FastAPI (api.fabrik.alsek.fr)
+  # ============================================
+  fabrik-back:
+    build: ./backend
+    container_name: fabrik-back
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      APIFY_API_TOKEN: ${APIFY_API_TOKEN}
+      PAGESPEED_API_KEY: ${PAGESPEED_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      N8N_INTERNAL_WEBHOOK: ${N8N_INTERNAL_WEBHOOK}
+    ports:
+      - "8010:8000"
+    depends_on:
+      fabrik-db:
+        condition: service_healthy
+    networks:
+      - fabrik-internal
+      - audit-app_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fabrik-back.rule=Host(`api.fabrik.alsek.fr`)"
+      - "traefik.http.routers.fabrik-back.entrypoints=websecure"
+      - "traefik.http.routers.fabrik-back.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fabrik-back.loadbalancer.server.port=8000"
+      - "traefik.docker.network=audit-app_web"
+
+  # ============================================
+  # FRONTEND — Next.js (fabrik.alsek.fr)
+  # ============================================
+  fabrik-front:
+    build: ./frontend
+    container_name: fabrik-front
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://api.fabrik.alsek.fr
+    ports:
+      - "3010:3000"
+    depends_on:
+      - fabrik-back
+    networks:
+      - audit-app_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fabrik-front.rule=Host(`fabrik.alsek.fr`)"
+      - "traefik.http.routers.fabrik-front.entrypoints=websecure"
+      - "traefik.http.routers.fabrik-front.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fabrik-front.loadbalancer.server.port=3000"
+      - "traefik.docker.network=audit-app_web"
+
+  # ============================================
+  # N8N — Automation (n8n.fabrik.alsek.fr)
+  # ============================================
+  fabrik-n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: fabrik-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.fabrik.alsek.fr
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://n8n.fabrik.alsek.fr/
+      - GENERIC_TIMEZONE=Europe/Paris
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+    volumes:
+      - fabrik_n8n_data:/home/node/.n8n
+    networks:
+      - fabrik-internal
+      - audit-app_web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fabrik-n8n.rule=Host(`n8n.fabrik.alsek.fr`)"
+      - "traefik.http.routers.fabrik-n8n.entrypoints=websecure"
+      - "traefik.http.routers.fabrik-n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fabrik-n8n.loadbalancer.server.port=5678"
+      - "traefik.docker.network=audit-app_web"
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  fabrik_db_data:
+    name: fabrik_db_data
+  fabrik_n8n_data:
+    name: fabrik_n8n_data
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  fabrik-internal:
+    driver: bridge
+  audit-app_web:
+    external: true

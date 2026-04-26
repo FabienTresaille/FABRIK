@@ -1,4 +1,5 @@
 import './globals.css';
+import { AuthProvider } from '../components/AuthProvider';
 
 export const metadata = {
   title: 'FABRIK — Business Partner IA | Audit Digital 360°',
@@ -22,7 +23,9 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

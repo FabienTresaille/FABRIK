@@ -8,6 +8,44 @@ from datetime import datetime
 
 
 # ============================================
+# AUTH
+# ============================================
+
+class RegisterRequest(BaseModel):
+    """Requête d'inscription."""
+    email: str = Field(..., description="Email de l'utilisateur")
+    password: str = Field(..., min_length=6, description="Mot de passe (min 6 caractères)")
+    full_name: str = Field(..., description="Nom complet")
+    captcha_token: str = Field(..., description="Token reCAPTCHA v2")
+
+
+class LoginRequest(BaseModel):
+    """Requête de connexion."""
+    email: str = Field(..., description="Email de l'utilisateur")
+    password: str = Field(..., description="Mot de passe")
+    captcha_token: str = Field(..., description="Token reCAPTCHA v2")
+
+
+class TokenResponse(BaseModel):
+    """Réponse contenant le JWT token."""
+    access_token: str
+    token_type: str = "bearer"
+    user: "UserResponse"
+
+
+class UserResponse(BaseModel):
+    """Informations utilisateur (sans mot de passe)."""
+    id: int
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================
 # AUDIT
 # ============================================
 

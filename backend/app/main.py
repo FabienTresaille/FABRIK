@@ -1,22 +1,34 @@
 """
 FABRIK — Point d'entrée FastAPI.
 API d'orchestration pour l'audit automatisé 360°.
-Endpoints : Health, Audit (lancement + récupération), Clients.
+Endpoints : Auth (register/login), Audit (lancement + récupération), Clients.
 """
 
 import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sql_func
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import Client, Audit
+from app.models import User, Client, Audit
+from app.auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+    get_admin_user,
+    verify_recaptcha,
+)
 from app.schemas import (
+    RegisterRequest,
+    LoginRequest,
+    TokenResponse,
+    UserResponse,
     AuditRequest,
     AuditResponse,
     AuditScores,
@@ -78,13 +90,117 @@ def health_check():
 
 
 # ============================================
-# AUDIT 360° — Endpoint principal
+# AUTHENTIFICATION
+# ============================================
+
+@app.post("/api/v1/auth/register", response_model=TokenResponse, tags=["Auth"])
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    """
+    Inscription d'un nouvel utilisateur.
+    Vérifie le CAPTCHA, crée le compte, et retourne un JWT.
+    """
+    # Vérification reCAPTCHA
+    await verify_recaptcha(request.captcha_token)
+
+    # Vérifier si l'email existe déjà
+    existing_user = db.query(User).filter(User.email == request.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Un compte existe déjà avec cet email.",
+        )
+
+    # Créer l'utilisateur
+    user = User(
+        email=request.email,
+        hashed_password=hash_password(request.password),
+        full_name=request.full_name,
+        role="client",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    logger.info(f"✅ Nouvel utilisateur inscrit : {user.email} (#{user.id})")
+
+    # Générer le JWT
+    access_token = create_access_token(data={"sub": user.id, "role": user.role})
+
+    return TokenResponse(
+        access_token=access_token,
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+        ),
+    )
+
+
+@app.post("/api/v1/auth/login", response_model=TokenResponse, tags=["Auth"])
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Connexion d'un utilisateur existant.
+    Vérifie le CAPTCHA, les identifiants, et retourne un JWT.
+    """
+    # Vérification reCAPTCHA
+    await verify_recaptcha(request.captcha_token)
+
+    # Trouver l'utilisateur
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user or not verify_password(request.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou mot de passe incorrect.",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compte désactivé. Contactez l'administrateur.",
+        )
+
+    logger.info(f"🔑 Connexion réussie : {user.email}")
+
+    # Générer le JWT
+    access_token = create_access_token(data={"sub": user.id, "role": user.role})
+
+    return TokenResponse(
+        access_token=access_token,
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+        ),
+    )
+
+
+@app.get("/api/v1/auth/me", response_model=UserResponse, tags=["Auth"])
+def get_me(current_user: User = Depends(get_current_user)):
+    """Retourne les informations de l'utilisateur connecté."""
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        is_active=current_user.is_active,
+    )
+
+
+# ============================================
+# AUDIT 360° — Endpoint principal (PROTÉGÉ)
 # ============================================
 
 @app.post("/api/v1/audit", tags=["Audit"])
-async def launch_audit(request: AuditRequest, db: Session = Depends(get_db)):
+async def launch_audit(
+    request: AuditRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Lance un audit automatisé 360° complet.
+    Lance un audit automatisé 360° complet. Requiert une authentification.
 
     Workflow :
     1. Créer/récupérer le client en DB
@@ -93,7 +209,7 @@ async def launch_audit(request: AuditRequest, db: Session = Depends(get_db)):
     4. Sauvegarder en DB
     5. Notifier n8n via webhook interne
     """
-    logger.info(f"🚀 Lancement audit 360° pour {request.company_name}")
+    logger.info(f"🚀 Audit 360° par {current_user.email} pour {request.company_name}")
 
     # --- Étape 1 : Créer ou récupérer le client ---
     client = db.query(Client).filter(
@@ -106,6 +222,7 @@ async def launch_audit(request: AuditRequest, db: Session = Depends(get_db)):
             website_url=request.website_url,
             instagram_handle=request.instagram_handle,
             contact_email=request.contact_email,
+            user_id=current_user.id,
         )
         db.add(client)
         db.commit()
@@ -193,6 +310,7 @@ async def launch_audit(request: AuditRequest, db: Session = Depends(get_db)):
             "score_performance": score_performance,
             "score_seo": score_seo,
             "score_social": score_social,
+            "requested_by": current_user.email,
             "synthesis_preview": (gemini_result.get("synthesis") or "")[:500],
         }
 
@@ -234,12 +352,12 @@ async def launch_audit(request: AuditRequest, db: Session = Depends(get_db)):
 
 
 # ============================================
-# AUDIT — Récupération
+# AUDIT — Récupération (PUBLIC — lien partageable)
 # ============================================
 
 @app.get("/api/v1/audit/{audit_id}", tags=["Audit"])
 def get_audit(audit_id: int, db: Session = Depends(get_db)):
-    """Récupère un audit par son ID."""
+    """Récupère un audit par son ID (public pour partage)."""
     audit = db.query(Audit).filter(Audit.id == audit_id).first()
     if not audit:
         raise HTTPException(status_code=404, detail="Audit non trouvé")
@@ -267,12 +385,24 @@ def get_audit(audit_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/audits", response_model=list[AuditSummary], tags=["Audit"])
-def list_audits(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
-    """Liste tous les audits (résumé) avec pagination."""
-    audits = (
+def list_audits(
+    skip: int = 0,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste les audits (protégé). Admin voit tout, client voit les siens."""
+    query = (
         db.query(Audit, Client.company_name)
         .join(Client, Audit.client_id == Client.id)
-        .order_by(Audit.created_at.desc())
+    )
+
+    # Filtrer par utilisateur si ce n'est pas un admin
+    if current_user.role != "admin":
+        query = query.filter(Client.user_id == current_user.id)
+
+    audits = (
+        query.order_by(Audit.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -291,13 +421,17 @@ def list_audits(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
 
 
 # ============================================
-# CLIENTS
+# CLIENTS (PROTÉGÉ)
 # ============================================
 
 @app.post("/api/v1/clients", response_model=ClientResponse, tags=["Clients"])
-def create_client(request: ClientCreate, db: Session = Depends(get_db)):
-    """Crée un nouveau client."""
-    client = Client(**request.model_dump())
+def create_client(
+    request: ClientCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Crée un nouveau client (protégé)."""
+    client = Client(**request.model_dump(), user_id=current_user.id)
     db.add(client)
     db.commit()
     db.refresh(client)
@@ -316,9 +450,19 @@ def create_client(request: ClientCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/clients", response_model=list[ClientResponse], tags=["Clients"])
-def list_clients(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    """Liste tous les clients avec le nombre d'audits."""
-    clients = db.query(Client).order_by(Client.created_at.desc()).offset(skip).limit(limit).all()
+def list_clients(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste les clients (protégé). Admin voit tout, client voit les siens."""
+    query = db.query(Client)
+
+    if current_user.role != "admin":
+        query = query.filter(Client.user_id == current_user.id)
+
+    clients = query.order_by(Client.created_at.desc()).offset(skip).limit(limit).all()
 
     result = []
     for client in clients:

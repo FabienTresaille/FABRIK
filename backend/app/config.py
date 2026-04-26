@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     # --- n8n Interne ---
     N8N_INTERNAL_WEBHOOK: str = "http://fabrik-n8n:5678/webhook/audit-complete"
 
+    # --- Authentification JWT ---
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 1440  # 24 heures
+
+    # --- Google reCAPTCHA v2 ---
+    RECAPTCHA_SECRET_KEY: str = ""
+
     # --- App ---
     APP_NAME: str = "FABRIK — Business Partner IA"
     APP_VERSION: str = "1.0.0"

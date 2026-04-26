@@ -1,6 +1,10 @@
 'use client';
 
+import { useAuth } from './AuthProvider';
+
 export default function Header() {
+  const { user, logout } = useAuth();
+
   return (
     <header className="header" id="main-header">
       <div className="header-logo">
@@ -15,6 +19,24 @@ export default function Header() {
         <a href="https://alsek.fr" target="_blank" rel="noopener noreferrer">
           Alsek Agency
         </a>
+        {user ? (
+          <>
+            <span className="header-user">
+              {user.full_name || user.email}
+            </span>
+            <button
+              onClick={logout}
+              className="btn-header-logout"
+              id="logout-btn"
+            >
+              Déconnexion
+            </button>
+          </>
+        ) : (
+          <a href="/login" className="btn-header-login">
+            Se connecter
+          </a>
+        )}
       </nav>
     </header>
   );

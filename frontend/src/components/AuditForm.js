@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from './AuthProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.fabrik.alsek.fr';
 
 export default function AuditForm() {
   const router = useRouter();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
@@ -29,12 +31,18 @@ export default function AuditForm() {
     try {
       const response = await fetch(`${API_URL}/api/v1/audit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          throw new Error('Session expirée. Veuillez vous reconnecter.');
+        }
         throw new Error(data.detail || `Erreur serveur (${response.status})`);
       }
 
@@ -121,16 +129,7 @@ export default function AuditForm() {
         </div>
 
         {error && (
-          <div
-            style={{
-              color: 'var(--color-danger)',
-              fontSize: '0.85rem',
-              marginTop: '0.5rem',
-              marginBottom: '0.5rem',
-            }}
-          >
-            ⚠️ {error}
-          </div>
+          <div className="auth-error">⚠️ {error}</div>
         )}
 
         <button

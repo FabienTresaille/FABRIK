@@ -38,6 +38,7 @@ services:
       PAGESPEED_API_KEY: ${PAGESPEED_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       N8N_INTERNAL_WEBHOOK: ${N8N_INTERNAL_WEBHOOK}
+      RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY}
     ports:
       - "8010:8000"
     depends_on:
@@ -63,6 +64,7 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: https://api.fabrik.alsek.fr
+      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY}
     ports:
       - "3010:3000"
     depends_on:

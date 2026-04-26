@@ -86,16 +86,16 @@ def get_current_user(
     Utilisé pour protéger les endpoints.
     """
     payload = decode_access_token(token)
-    user_id: int = payload.get("sub")
+    user_id_str = payload.get("sub")
 
-    if user_id is None:
+    if user_id_str is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == int(user_id_str)).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

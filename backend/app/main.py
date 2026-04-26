@@ -132,7 +132,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
     if is_admin:
         logger.info(f"👑 Super Admin créé : {user.email} (#{user.id})")
-        access_token = create_access_token(data={"sub": user.id, "role": user.role})
+        access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
         return RegisterResponse(
             access_token=access_token,
             user=UserResponse(
@@ -180,7 +180,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     logger.info(f"🔑 Connexion réussie : {user.email}")
 
     # Générer le JWT
-    access_token = create_access_token(data={"sub": user.id, "role": user.role})
+    access_token = create_access_token(data={"sub": str(user.id), "role": user.role})
 
     return TokenResponse(
         access_token=access_token,

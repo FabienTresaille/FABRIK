@@ -184,3 +184,93 @@ class HealthResponse(BaseModel):
     status: str = "online"
     service: str = "FABRIK — Business Partner IA"
     version: str = "1.0.0"
+
+
+# ============================================
+# DASHBOARD
+# ============================================
+
+class AgencyStats(BaseModel):
+    """KPIs agrégés de l'agence."""
+    total_audits: int = 0
+    clients_onboarded: int = 0
+    avg_score: Optional[float] = None
+    pending_audits: int = 0
+    total_revenue: int = 0
+    total_leads: int = 0
+
+class PipelineItem(BaseModel):
+    """Ligne du pipeline onboarding."""
+    audit_id: int
+    client_id: int
+    company_name: str
+    score_global: Optional[int] = None
+    status: str
+    onboarding_status: str
+    created_at: Optional[datetime] = None
+    contact_email: Optional[str] = None
+
+class OnboardRequest(BaseModel):
+    """Requête d'onboarding client."""
+    current_revenue: Optional[int] = None
+    allocated_budget: Optional[int] = None
+    objectives: Optional[str] = None
+    notes: Optional[str] = None
+    company_sector: Optional[str] = None
+
+class ClientDashboard(BaseModel):
+    """Dashboard d'un client individuel."""
+    id: int
+    company_name: str
+    website_url: Optional[str] = None
+    instagram_handle: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    onboarding_status: str
+    onboarding_data: Optional[dict] = None
+    scores_data: Optional[dict] = None
+    score_global: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+class MonthlyMetricsCreate(BaseModel):
+    """Création/mise à jour métriques mensuelles."""
+    month: str = Field(..., description="Format YYYY-MM-01")
+    phase: Optional[str] = None
+    revenue: int = 0
+    ads_spend: int = 0
+    roas: float = 0
+    leads: int = 0
+    cpl: int = 0
+    deals: int = 0
+    cost_per_deal: int = 0
+    avg_basket: int = 0
+    conversion_rate: float = 0
+    pipeline: int = 0
+    google_rating: float = 0
+    google_reviews: int = 0
+    maintenance_tasks: int = 0
+    ia_tasks: int = 0
+
+class MonthlyMetricsResponse(BaseModel):
+    """Réponse métriques mensuelles."""
+    id: int
+    month: str
+    phase: Optional[str] = None
+    revenue: int = 0
+    ads_spend: int = 0
+    roas: float = 0
+    leads: int = 0
+    cpl: int = 0
+    deals: int = 0
+    cost_per_deal: int = 0
+    avg_basket: int = 0
+    conversion_rate: float = 0
+    pipeline: int = 0
+    google_rating: float = 0
+    google_reviews: int = 0
+    maintenance_tasks: int = 0
+    ia_tasks: int = 0
+
+    class Config:
+        from_attributes = True
+

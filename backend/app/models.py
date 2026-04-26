@@ -1,10 +1,5 @@
-"""
-FABRIK — Modèles ORM SQLAlchemy.
-Tables : Users, Clients, Audits.
-"""
-
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, ForeignKey, CheckConstraint
+    Column, Integer, String, Text, Boolean, DateTime, Date, Float, ForeignKey, CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -46,12 +41,18 @@ class Client(Base):
     contact_phone = Column(String(50))
     notes = Column(Text)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Onboarding
+    onboarding_status = Column(String(20), default="pending")
+    onboarding_data = Column(JSONB)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relations
     user = relationship("User", back_populates="clients")
     audits = relationship("Audit", back_populates="client", cascade="all, delete-orphan")
+    monthly_metrics = relationship("MonthlyMetrics", back_populates="client", cascade="all, delete-orphan")
 
 
 class Audit(Base):
@@ -94,3 +95,34 @@ class Audit(Base):
         CheckConstraint("status IN ('pending', 'processing', 'complete', 'error')", name="check_audit_status"),
         CheckConstraint("score_global >= 0 AND score_global <= 100", name="check_score_global_range"),
     )
+
+
+class MonthlyMetrics(Base):
+    """Métriques mensuelles de performance par client."""
+    __tablename__ = "monthly_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    month = Column(Date, nullable=False)
+    phase = Column(String(20))
+
+    revenue = Column(Integer, default=0)
+    ads_spend = Column(Integer, default=0)
+    roas = Column(Float, default=0)
+    leads = Column(Integer, default=0)
+    cpl = Column(Integer, default=0)
+    deals = Column(Integer, default=0)
+    cost_per_deal = Column(Integer, default=0)
+    avg_basket = Column(Integer, default=0)
+    conversion_rate = Column(Float, default=0)
+    pipeline = Column(Integer, default=0)
+    google_rating = Column(Float, default=0)
+    google_reviews = Column(Integer, default=0)
+    maintenance_tasks = Column(Integer, default=0)
+    ia_tasks = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relations
+    client = relationship("Client", back_populates="monthly_metrics")
+

@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS clients (
     contact_phone VARCHAR(50),
     notes TEXT,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+
+    -- Onboarding
+    onboarding_status VARCHAR(20) DEFAULT 'pending',
+    onboarding_data JSONB,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -75,6 +80,36 @@ CREATE INDEX IF NOT EXISTS idx_audits_status ON audits(status);
 CREATE INDEX IF NOT EXISTS idx_audits_created_at ON audits(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- ==============================================
+-- TABLE : MONTHLY_METRICS (Détail mensuel)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS monthly_metrics (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    month DATE NOT NULL,
+    phase VARCHAR(20),
+
+    revenue INTEGER DEFAULT 0,
+    ads_spend INTEGER DEFAULT 0,
+    roas FLOAT DEFAULT 0,
+    leads INTEGER DEFAULT 0,
+    cpl INTEGER DEFAULT 0,
+    deals INTEGER DEFAULT 0,
+    cost_per_deal INTEGER DEFAULT 0,
+    avg_basket INTEGER DEFAULT 0,
+    conversion_rate FLOAT DEFAULT 0,
+    pipeline INTEGER DEFAULT 0,
+    google_rating FLOAT DEFAULT 0,
+    google_reviews INTEGER DEFAULT 0,
+    maintenance_tasks INTEGER DEFAULT 0,
+    ia_tasks INTEGER DEFAULT 0,
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_metrics_client ON monthly_metrics(client_id);
+CREATE INDEX IF NOT EXISTS idx_monthly_metrics_month ON monthly_metrics(month);
 
 -- ==============================================
 -- Note : Le compte admin est créé automatiquement

@@ -15,7 +15,7 @@ from sqlalchemy import func as sql_func
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import User, Client, Audit
+from app.models import User, Client, Audit, MonthlyMetrics
 from app.auth import (
     hash_password,
     verify_password,
@@ -38,6 +38,12 @@ from app.schemas import (
     ClientCreate,
     ClientResponse,
     HealthResponse,
+    AgencyStats,
+    PipelineItem,
+    OnboardRequest,
+    ClientDashboard,
+    MonthlyMetricsCreate,
+    MonthlyMetricsResponse,
 )
 from app.services import apify_service, pagespeed_service, gemini_service, n8n_service
 from app.scoring import calculate_scores
@@ -597,3 +603,205 @@ def list_clients(
             )
         )
     return result
+
+
+# ============================================
+# DASHBOARD — Vue Agence & Client (PROTÉGÉ ADMIN)
+# ============================================
+
+@app.get("/api/v1/dashboard/agency", response_model=AgencyStats, tags=["Dashboard"])
+def get_agency_stats(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """KPIs agrégés de l'agence."""
+    total_audits = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete").scalar()
+    clients_onboarded = db.query(sql_func.count(Client.id)).filter(Client.onboarding_status == "onboarded").scalar()
+    avg_score = db.query(sql_func.avg(Audit.score_global)).filter(Audit.status == "complete").scalar()
+    pending = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete").scalar() - clients_onboarded
+
+    # Totaux depuis MonthlyMetrics
+    total_revenue = db.query(sql_func.sum(MonthlyMetrics.revenue)).scalar() or 0
+    total_leads = db.query(sql_func.sum(MonthlyMetrics.leads)).scalar() or 0
+
+    return AgencyStats(
+        total_audits=total_audits,
+        clients_onboarded=clients_onboarded,
+        avg_score=round(avg_score, 1) if avg_score else None,
+        pending_audits=max(0, pending),
+        total_revenue=total_revenue,
+        total_leads=total_leads,
+    )
+
+
+@app.get("/api/v1/dashboard/pipeline", response_model=list[PipelineItem], tags=["Dashboard"])
+def get_pipeline(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Pipeline des audits pour onboarding."""
+    audits = (
+        db.query(Audit, Client)
+        .join(Client, Audit.client_id == Client.id)
+        .filter(Audit.status == "complete")
+        .order_by(Audit.created_at.desc())
+        .all()
+    )
+
+    return [
+        PipelineItem(
+            audit_id=audit.id,
+            client_id=client.id,
+            company_name=client.company_name,
+            score_global=audit.score_global,
+            status=audit.status,
+            onboarding_status=client.onboarding_status or "pending",
+            created_at=audit.created_at,
+            contact_email=client.contact_email,
+        )
+        for audit, client in audits
+    ]
+
+
+@app.post("/api/v1/dashboard/onboard/{audit_id}", tags=["Dashboard"])
+def onboard_client(
+    audit_id: int,
+    request: OnboardRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Valider l'onboarding d'un client après audit."""
+    audit = db.query(Audit).filter(Audit.id == audit_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit non trouvé")
+
+    client = db.query(Client).filter(Client.id == audit.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    client.onboarding_status = "onboarded"
+    client.onboarding_data = {
+        "current_revenue": request.current_revenue,
+        "allocated_budget": request.allocated_budget,
+        "objectives": request.objectives,
+        "notes": request.notes,
+        "company_sector": request.company_sector,
+        "onboarded_by": admin.email,
+        "audit_id": audit_id,
+    }
+    db.commit()
+    db.refresh(client)
+    logger.info(f"\u2705 Client #{client.id} ({client.company_name}) onboardé par {admin.email}")
+
+    return {"status": "onboarded", "client_id": client.id, "company_name": client.company_name}
+
+
+@app.get("/api/v1/dashboard/client/{client_id}", response_model=ClientDashboard, tags=["Dashboard"])
+def get_client_dashboard(
+    client_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Dashboard individuel d'un client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    # Dernier audit complet
+    last_audit = (
+        db.query(Audit)
+        .filter(Audit.client_id == client_id, Audit.status == "complete")
+        .order_by(Audit.created_at.desc())
+        .first()
+    )
+
+    return ClientDashboard(
+        id=client.id,
+        company_name=client.company_name,
+        website_url=client.website_url,
+        instagram_handle=client.instagram_handle,
+        contact_email=client.contact_email,
+        contact_phone=client.contact_phone,
+        onboarding_status=client.onboarding_status or "pending",
+        onboarding_data=client.onboarding_data,
+        scores_data=last_audit.scores_data if last_audit else None,
+        score_global=last_audit.score_global if last_audit else None,
+        created_at=client.created_at,
+    )
+
+
+@app.put("/api/v1/clients/{client_id}", tags=["Clients"])
+def update_client(
+    client_id: int,
+    request: ClientCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Mettre à jour les infos d'un client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    for key, value in request.model_dump(exclude_unset=True).items():
+        setattr(client, key, value)
+    db.commit()
+    db.refresh(client)
+    return {"status": "updated", "client_id": client.id}
+
+
+@app.get("/api/v1/dashboard/client/{client_id}/metrics", response_model=list[MonthlyMetricsResponse], tags=["Dashboard"])
+def get_client_metrics(
+    client_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Récupérer les métriques mensuelles d'un client."""
+    metrics = (
+        db.query(MonthlyMetrics)
+        .filter(MonthlyMetrics.client_id == client_id)
+        .order_by(MonthlyMetrics.month.asc())
+        .all()
+    )
+    return [
+        MonthlyMetricsResponse(
+            id=m.id, month=m.month.strftime("%Y-%m-%d"),
+            phase=m.phase, revenue=m.revenue or 0, ads_spend=m.ads_spend or 0,
+            roas=m.roas or 0, leads=m.leads or 0, cpl=m.cpl or 0,
+            deals=m.deals or 0, cost_per_deal=m.cost_per_deal or 0,
+            avg_basket=m.avg_basket or 0, conversion_rate=m.conversion_rate or 0,
+            pipeline=m.pipeline or 0, google_rating=m.google_rating or 0,
+            google_reviews=m.google_reviews or 0,
+            maintenance_tasks=m.maintenance_tasks or 0, ia_tasks=m.ia_tasks or 0,
+        ) for m in metrics
+    ]
+
+
+@app.post("/api/v1/dashboard/client/{client_id}/metrics", tags=["Dashboard"])
+def upsert_client_metrics(
+    client_id: int,
+    request: MonthlyMetricsCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Ajouter ou mettre à jour une ligne de métriques mensuelles."""
+    from datetime import date as dt_date
+    month_date = dt_date.fromisoformat(request.month)
+
+    existing = (
+        db.query(MonthlyMetrics)
+        .filter(MonthlyMetrics.client_id == client_id, MonthlyMetrics.month == month_date)
+        .first()
+    )
+
+    if existing:
+        for key, value in request.model_dump(exclude={"month"}).items():
+            setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return {"status": "updated", "id": existing.id}
+    else:
+        m = MonthlyMetrics(client_id=client_id, month=month_date, **request.model_dump(exclude={"month"}))
+        db.add(m)
+        db.commit()
+        db.refresh(m)
+        return {"status": "created", "id": m.id}

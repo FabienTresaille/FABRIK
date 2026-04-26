@@ -22,9 +22,14 @@ export default function Header() {
         {user ? (
           <>
             {user.role === 'admin' && (
-              <a href="/admin" className="btn-header-admin" id="admin-link">
-                ⚙️ Admin
-              </a>
+              <>
+                <a href="/dashboard" className="btn-header-admin" id="dashboard-link">
+                  📊 Dashboard
+                </a>
+                <a href="/admin" className="btn-header-admin" id="admin-link">
+                  ⚙️ Admin
+                </a>
+              </>
             )}
             <span className="header-user">
               {user.full_name || user.email}

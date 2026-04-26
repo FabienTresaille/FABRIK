@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
+import { useAuth } from '../../components/AuthProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.fabrik.alsek.fr';
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
 
 export default function LoginPage() {
-  const router = useRouter();
+  const { login: authLogin } = useAuth();
   const recaptchaRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -97,10 +97,8 @@ export default function LoginPage() {
         throw new Error(data.detail || 'Identifiants incorrects.');
       }
 
-      // Stocker le token et rediriger
-      localStorage.setItem('fabrik_token', data.access_token);
-      localStorage.setItem('fabrik_user', JSON.stringify(data.user));
-      router.push('/');
+      // Mettre à jour l'état auth et rediriger
+      authLogin(data.access_token, data.user);
     } catch (err) {
       setError(err.message);
       // Reset le CAPTCHA

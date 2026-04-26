@@ -2,8 +2,8 @@
 FABRIK — Schémas Pydantic (validation request/response).
 """
 
-from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional, Any
+from pydantic import BaseModel, Field
+from typing import Optional, Any, List
 from datetime import datetime
 
 
@@ -68,16 +68,44 @@ class RegisterResponse(BaseModel):
 
 
 # ============================================
-# AUDIT
+# AUDIT — Request (Wizard 5 étapes)
 # ============================================
 
 class AuditRequest(BaseModel):
-    """Requête pour lancer un audit 360°."""
-    website_url: str = Field(..., description="URL du site web à auditer", examples=["https://example.com"])
-    instagram_handle: str = Field(..., description="Handle Instagram (avec ou sans @)", examples=["@moncompte"])
-    company_name: str = Field(..., description="Nom de l'entreprise", examples=["Alsek Agency"])
-    contact_email: Optional[str] = Field(None, description="Email de contact (optionnel)")
+    """Requête pour lancer un audit 360° (wizard 5 étapes)."""
+    # Step 1 — Entreprise
+    company_name: str = Field(..., description="Nom de l'entreprise")
+    website_url: str = Field(..., description="URL du site web")
+    company_sector: Optional[str] = Field(None, description="Secteur d'activité")
+    site_age: Optional[str] = Field(None, description="Âge du site")
 
+    # Step 2 — Réseaux Sociaux
+    instagram_handle: str = Field(..., description="Handle Instagram")
+    facebook_url: Optional[str] = Field(None, description="URL Facebook")
+    linkedin_url: Optional[str] = Field(None, description="URL LinkedIn")
+    tiktok_url: Optional[str] = Field(None, description="URL TikTok")
+    google_business_url: Optional[str] = Field(None, description="URL Google Business")
+
+    # Step 3 — Publicité & Marketing
+    ads_active: Optional[str] = Field(None, description="Publicité active")
+    budget: Optional[str] = Field(None, description="Budget mensuel")
+    conversion_tracking: Optional[str] = Field(None, description="Suivi des conversions")
+    acquisition_strategy: Optional[str] = Field(None, description="Stratégie d'acquisition")
+    reviews: Optional[str] = Field(None, description="Avis clients")
+    visual_coherence: Optional[str] = Field(None, description="Cohérence visuelle (1-5)")
+
+    # Step 4 — Contact
+    contact_email: Optional[str] = Field(None, description="Email contact")
+    contact_phone: Optional[str] = Field(None, description="Téléphone")
+    contact_firstname: Optional[str] = Field(None, description="Prénom")
+    contact_lastname: Optional[str] = Field(None, description="Nom")
+    contact_notes: Optional[str] = Field(None, description="Notes")
+    client_objective: Optional[str] = Field(None, description="Objectif principal")
+
+
+# ============================================
+# AUDIT — Response
+# ============================================
 
 class AuditScores(BaseModel):
     """Scores de l'audit."""
@@ -94,9 +122,11 @@ class AuditResponse(BaseModel):
     company_name: str
     status: str
     scores: Optional[AuditScores] = None
+    scores_data: Optional[dict] = None  # Scoring détaillé (25 critères)
     pagespeed_data: Optional[dict] = None
     apify_data: Optional[dict] = None
     gemini_synthesis: Optional[str] = None
+    form_data: Optional[dict] = None
     error_message: Optional[str] = None
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

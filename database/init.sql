@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS audits (
     pagespeed_data JSONB,
     apify_data JSONB,
 
+    -- Données du formulaire wizard
+    form_data JSONB,
+
     -- Synthèse IA
     gemini_synthesis TEXT,
 
@@ -53,6 +56,9 @@ CREATE TABLE IF NOT EXISTS audits (
     score_performance INTEGER CHECK (score_performance >= 0 AND score_performance <= 100),
     score_seo INTEGER CHECK (score_seo >= 0 AND score_seo <= 100),
     score_social INTEGER CHECK (score_social >= 0 AND score_social <= 100),
+
+    -- Scores détaillés (moteur de scoring)
+    scores_data JSONB,
 
     -- Métadonnées
     error_message TEXT,

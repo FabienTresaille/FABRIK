@@ -1,479 +1,269 @@
 'use client';
 
 /**
- * AuditReport — Rapport d'audit 360° client-ready.
- * Sections : Vue d'ensemble, Synthèse IA, Site Web, Instagram, Recommandations, CTA.
- * Inspiré de la maquette audit-app (alsek).
+ * AuditReport — Rapport d'audit 360° conversion-optimized.
+ * 10 sections : Vue d'ensemble, Pertes CA, Synthèse, 3 Piliers, Benchmark, Recommandations, CTA.
  */
 
 export default function AuditReport({ audit }) {
   if (!audit) return null;
+  const sd = audit.scores_data;
+  if (!sd) return <LegacyReport audit={audit} />;
 
-  const { scores, pagespeed_data, apify_data, gemini_synthesis } = audit;
-  const parsed = parseGeminiSynthesis(gemini_synthesis);
+  const { pillars, synthesis, benchmark, recommendations, revenue_impact } = sd;
 
   return (
     <div id="audit-report">
-      {/* ═══ VUE D'ENSEMBLE — 3 Piliers ═══ */}
+      {/* 1 — VUE D'ENSEMBLE */}
       <section className="rpt-section">
-        <div className="rpt-section-header">
-          <div className="rpt-section-icon">📊</div>
-          <h2 className="rpt-section-title">Vue d&apos;ensemble</h2>
-          <div className="rpt-divider" />
-          <p className="rpt-section-subtitle">
-            Votre présence digitale analysée sur 3 piliers fondamentaux
-          </p>
-        </div>
-
+        <SectionHeader icon="📊" title="Vue d'ensemble" subtitle="Votre présence digitale analysée sur 3 piliers fondamentaux" />
         <div className="rpt-pillars">
-          <PillarCard
-            icon="🌐"
-            title="Performance Web"
-            score={scores?.score_performance}
-          />
-          <PillarCard
-            icon="🔍"
-            title="Référencement SEO"
-            score={scores?.score_seo}
-          />
-          <PillarCard
-            icon="📱"
-            title="Réseaux Sociaux"
-            score={scores?.score_social}
-          />
+          {pillars.map((p, i) => (
+            <PillarCard key={i} icon={p.icon} title={p.name} score={p.score} max={p.max} />
+          ))}
         </div>
       </section>
 
-      {/* ═══ SYNTHÈSE IA ═══ */}
-      {parsed && (
+      {/* 2 — PERTES CA */}
+      {revenue_impact && revenue_impact.loss_reasons?.length > 0 && (
         <section className="rpt-section">
-          <div className="rpt-section-header">
-            <div className="rpt-section-icon">📋</div>
-            <h2 className="rpt-section-title">Synthèse Stratégique</h2>
-            <div className="rpt-divider" />
-          </div>
-
-          <div className="rpt-summary-grid">
-            <SummaryCard
-              type="strengths"
-              icon="💪"
-              title="Points Forts"
-              items={parsed.strengths}
-            />
-            <SummaryCard
-              type="weaknesses"
-              icon="⚠️"
-              title="Axes d'Amélioration"
-              items={parsed.weaknesses}
-            />
-            <SummaryCard
-              type="opportunities"
-              icon="🚀"
-              title="Opportunités"
-              items={parsed.opportunities}
-            />
-          </div>
-
-          {/* Texte complet si parsing partiel */}
-          {parsed.rawContent && (
-            <div className="rpt-synthesis-raw">
-              <div
-                dangerouslySetInnerHTML={{ __html: formatMarkdown(parsed.rawContent) }}
-              />
+          <SectionHeader icon="💰" title="Estimation du manque à gagner" subtitle="Impact financier estimé de vos lacunes digitales" />
+          <div className="rpt-revenue-card">
+            <div className="rpt-revenue-number">
+              ~{revenue_impact.estimated_range} <span className="rpt-revenue-unit">{revenue_impact.unit}</span>
             </div>
-          )}
+            <p className="rpt-revenue-desc">
+              Avec vos lacunes actuelles, vous passez potentiellement à côté de <strong>{revenue_impact.estimated_range} {revenue_impact.unit}</strong>.
+            </p>
+            <ul className="rpt-revenue-reasons">
+              {revenue_impact.loss_reasons.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+            <div className="rpt-revenue-formula">
+              <strong>📐 Pourquoi ?</strong> {revenue_impact.formula_explanation}
+            </div>
+          </div>
         </section>
       )}
 
-      {/* ═══ PILIER 1 — SITE WEB ═══ */}
-      {pagespeed_data?.success && (
+      {/* 3 — SYNTHÈSE */}
+      {synthesis && (
         <section className="rpt-section">
-          <div className="rpt-section-header">
-            <div className="rpt-section-icon">🌐</div>
-            <h2 className="rpt-section-title">Pilier 1 — Site Web</h2>
-            <div className="rpt-divider" />
-            <p className="rpt-section-subtitle">
-              Analyse technique de votre site via Google PageSpeed Insights
-            </p>
+          <SectionHeader icon="📋" title="Synthèse" />
+          <div className="rpt-summary-grid">
+            <SummaryCard type="strengths" icon="🛡️" title="Points Forts" items={synthesis.strengths} />
+            <SummaryCard type="weaknesses" icon="⚠️" title="Points Faibles" items={synthesis.weaknesses} />
+            <SummaryCard type="opportunities" icon="🚀" title="Opportunités" items={synthesis.opportunities} />
           </div>
-
-          <PageSpeedSection data={pagespeed_data} />
         </section>
       )}
 
-      {/* ═══ PILIER 2 — INSTAGRAM ═══ */}
-      {apify_data?.found && (
-        <section className="rpt-section">
-          <div className="rpt-section-header">
-            <div className="rpt-section-icon">📸</div>
-            <h2 className="rpt-section-title">Pilier 2 — Contenu & Image</h2>
-            <div className="rpt-divider" />
-            <p className="rpt-section-subtitle">
-              Analyse de votre présence Instagram et stratégie de contenu
-            </p>
+      {/* 4,5,6 — PILIERS DÉTAILLÉS */}
+      {pillars.map((p, i) => (
+        <section key={i} className="rpt-section">
+          <SectionHeader
+            icon={p.icon}
+            title={`Pilier ${i + 1} — ${p.name}`}
+            subtitle={`Score: ${p.score}/${p.max} — ${getRatingLabel(p.score, p.max)}`}
+          />
+          <div className="rpt-criteria-grid">
+            {p.criteria.map((c, j) => (
+              <CriterionCard key={j} criterion={c} />
+            ))}
           </div>
+        </section>
+      ))}
 
-          <InstagramSection data={apify_data} />
+      {/* 7 — BENCHMARK */}
+      {benchmark && (
+        <section className="rpt-section">
+          <SectionHeader icon="📈" title="Benchmark Sectoriel" subtitle="Votre positionnement face à la moyenne de votre secteur" />
+          <div className="rpt-benchmark">
+            <BenchmarkBar label={audit.company_name} score={benchmark.user_score} max={100} />
+            <BenchmarkBar label={`Moyenne ${benchmark.sector}`} score={benchmark.sector_avg} max={100} isSector />
+            <div className={`rpt-benchmark-msg ${benchmark.diff >= 0 ? 'positive' : 'negative'}`}>
+              {benchmark.diff >= 0
+                ? `✅ Vous êtes ${benchmark.diff} points au-dessus de la moyenne de votre secteur.`
+                : `⚠️ Vous êtes ${Math.abs(benchmark.diff)} points en dessous de la moyenne de votre secteur.`
+              }
+            </div>
+          </div>
         </section>
       )}
 
-      {/* ═══ RECOMMANDATIONS ═══ */}
-      {parsed?.recommendations?.length > 0 && (
+      {/* 8 — RECOMMANDATIONS */}
+      {recommendations?.length > 0 && (
         <section className="rpt-section">
-          <div className="rpt-section-header">
-            <div className="rpt-section-icon">🎯</div>
-            <h2 className="rpt-section-title">Actions Prioritaires</h2>
-            <div className="rpt-divider" />
-            <p className="rpt-section-subtitle">
-              Les améliorations à fort impact pour transformer votre présence digitale
-            </p>
-          </div>
-
+          <SectionHeader icon="🎯" title="Actions Prioritaires" subtitle="Les améliorations à fort impact pour transformer votre présence digitale" />
           <div className="rpt-recommendations">
-            {parsed.recommendations.map((reco, idx) => (
-              <RecommendationCard key={idx} index={idx + 1} reco={reco} />
+            {recommendations.map((r, i) => (
+              <RecoCard key={i} index={i + 1} reco={r} />
             ))}
           </div>
         </section>
       )}
 
-      {/* ═══ CTA — Prochaine étape ═══ */}
+      {/* 9 — CTA */}
       <section className="rpt-cta">
-        <h2 className="rpt-cta-title">
-          <span className="gradient-text">Prochaine étape</span>
-        </h2>
+        <div className="rpt-cta-human">
+          <p>🔍 <strong>Notre équipe a analysé votre rapport.</strong> Nous avons noté des points critiques spécifiques à <strong>{audit.company_name}</strong> qui ne sont pas dans l&apos;analyse automatique.</p>
+        </div>
+        <h2 className="rpt-cta-title"><span className="gradient-text">Prochaine étape</span></h2>
         <p className="rpt-cta-desc">
           Transformez ces recommandations en résultats concrets.<br />
-          Réservez votre <strong>appel stratégique gratuit de 30 minutes</strong> avec notre équipe.
+          <strong>Obtenir votre plan de croissance gratuit (30 min)</strong>
         </p>
         <div className="rpt-cta-buttons">
-          <a
-            href="https://alsek.fr"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-            id="cta-book-btn"
-          >
-            📞 Réserver un appel
+          <a href="https://alsek.fr" target="_blank" rel="noopener noreferrer" className="btn btn-primary" id="cta-book-btn">
+            📞 Obtenir mon plan de croissance gratuit
           </a>
-          <button
-            className="btn btn-secondary"
-            onClick={() => window.print()}
-            id="cta-print-btn"
-          >
+          <button className="btn btn-secondary" onClick={() => window.print()} id="cta-print-btn">
             🖨️ Imprimer le rapport
           </button>
         </div>
+        <p className="rpt-cta-scarcity">⏰ Seulement 4 créneaux disponibles cette semaine pour des audits approfondis.</p>
+        <div className="rpt-cta-contact">
+          <a href="mailto:contact@alsek.fr" className="rpt-cta-contact-item">✉️ contact@alsek.fr</a>
+          <a href="tel:+33614308801" className="rpt-cta-contact-item">📞 06 14 30 88 01</a>
+          <a href="https://alsek.fr" target="_blank" rel="noopener noreferrer" className="rpt-cta-contact-item">🌐 alsek.fr</a>
+        </div>
       </section>
 
-      {/* ═══ Toolbar flottante ═══ */}
+      {/* Toolbar */}
       <div className="rpt-toolbar no-print">
-        <button
-          className="rpt-toolbar-btn"
-          onClick={() => window.print()}
-          title="Imprimer"
-        >
-          🖨️
-        </button>
-        <button
-          className="rpt-toolbar-btn"
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            alert('Lien copié !');
-          }}
-          title="Partager"
-        >
-          🔗
-        </button>
-        <button
-          className="rpt-toolbar-btn"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          title="Haut de page"
-        >
-          ⬆️
-        </button>
+        <button className="rpt-toolbar-btn" onClick={() => window.print()} title="Imprimer">🖨️</button>
+        <button className="rpt-toolbar-btn" onClick={() => { navigator.clipboard.writeText(window.location.href); alert('Lien copié !'); }} title="Partager">🔗</button>
+        <button className="rpt-toolbar-btn" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} title="Haut de page">⬆️</button>
       </div>
     </div>
   );
 }
 
+/* ═══ SUB-COMPONENTS ═══ */
 
-/* ═══════════════════════════════════════════
-   SUB-COMPONENTS
-   ═══════════════════════════════════════════ */
-
-/* ── Pillar Card ── */
-function PillarCard({ icon, title, score }) {
-  const s = score ?? 0;
-  const circumference = 2 * Math.PI * 42;
-  const offset = circumference - (s / 100) * circumference;
-  const cls = getScoreClass(s);
-
+function SectionHeader({ icon, title, subtitle }) {
   return (
-    <div className={`rpt-pillar-card ${cls}`}>
+    <div className="rpt-section-header">
+      <div className="rpt-section-icon">{icon}</div>
+      <h2 className="rpt-section-title">{title}</h2>
+      <div className="rpt-divider" />
+      {subtitle && <p className="rpt-section-subtitle">{subtitle}</p>}
+    </div>
+  );
+}
+
+function PillarCard({ icon, title, score, max }) {
+  const pct = Math.round((score / max) * 100);
+  const circumference = 2 * Math.PI * 42;
+  const offset = circumference - (pct / 100) * circumference;
+  return (
+    <div className={`rpt-pillar-card ${getClass(pct)}`}>
       <div className="rpt-pillar-icon">{icon}</div>
       <div className="rpt-pillar-title">{title}</div>
       <div className="rpt-score-circle">
         <svg viewBox="0 0 100 100">
           <circle className="rpt-score-bg" cx="50" cy="50" r="42" />
-          <circle
-            className="rpt-score-fill"
-            cx="50"
-            cy="50"
-            r="42"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-          />
+          <circle className="rpt-score-fill" cx="50" cy="50" r="42" strokeDasharray={circumference} strokeDashoffset={offset} />
         </svg>
-        <span className="rpt-score-value">{s}</span>
-        <span className="rpt-score-label">/ 100</span>
+        <span className="rpt-score-value">{score}</span>
+        <span className="rpt-score-label">{score} / {max}</span>
       </div>
     </div>
   );
 }
 
-/* ── Summary Card ── */
 function SummaryCard({ type, icon, title, items }) {
-  if (!items || items.length === 0) return null;
-
+  if (!items?.length) return null;
   return (
     <div className={`rpt-summary-card rpt-summary-${type}`}>
       <div className="rpt-summary-card-icon">{icon}</div>
       <h3 className="rpt-summary-card-title">{title}</h3>
       <ul className="rpt-summary-list">
-        {items.map((item, idx) => (
-          <li key={idx}>{item}</li>
-        ))}
+        {items.map((item, i) => <li key={i}>{item}</li>)}
       </ul>
     </div>
   );
 }
 
-/* ── PageSpeed Section ── */
-function PageSpeedSection({ data }) {
-  const mobile = data.mobile?.scores || {};
-  const desktop = data.desktop?.scores || {};
-  const cwv = data.mobile?.core_web_vitals || {};
-
-  const categories = [
-    { name: 'Performance', key: 'performance', icon: '⚡' },
-    { name: 'SEO', key: 'seo', icon: '🔍' },
-    { name: 'Accessibilité', key: 'accessibility', icon: '♿' },
-    { name: 'Bonnes Pratiques', key: 'best_practices', icon: '✅' },
-  ];
-
+function CriterionCard({ criterion: c }) {
   return (
-    <>
-      {/* Scores comparatifs Mobile vs Desktop */}
-      <div className="rpt-criteria-grid">
-        {categories.map((cat) => {
-          const mobileScore = mobile[cat.key] ?? 0;
-          const desktopScore = desktop[cat.key] ?? 0;
-          const avg = Math.round((mobileScore + desktopScore) / 2);
-
-          return (
-            <div key={cat.key} className="rpt-criterion-card">
-              <div className="rpt-criterion-header">
-                <span className="rpt-criterion-icon">{cat.icon}</span>
-                <span className="rpt-criterion-name">{cat.name}</span>
-                <span className={`rpt-criterion-score ${getScoreClass(avg)}`}>
-                  {avg}/100
-                </span>
-              </div>
-              <div className="rpt-criterion-detail">
-                📱 Mobile : <MetricBadge value={mobileScore} /> &nbsp;
-                💻 Desktop : <MetricBadge value={desktopScore} />
-              </div>
-              <div className="rpt-criterion-bar">
-                <div
-                  className={`rpt-criterion-bar-fill ${getScoreClass(avg)}`}
-                  style={{ width: `${avg}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+    <div className="rpt-criterion-card">
+      <div className="rpt-criterion-header">
+        <span className="rpt-criterion-name">{c.name}</span>
+        <span className={`rpt-criterion-score ${getClass(c.percentage)}`}>{c.score}/{c.max}</span>
       </div>
-
-      {/* Core Web Vitals */}
-      {Object.keys(cwv).length > 0 && (
-        <div className="rpt-cwv">
-          <h3 className="rpt-cwv-title">Core Web Vitals (Mobile)</h3>
-          <div className="rpt-cwv-grid">
-            {Object.entries(cwv).map(
-              ([key, val]) =>
-                val && (
-                  <div key={key} className="rpt-cwv-item">
-                    <div className="rpt-cwv-name">{formatCWVName(key)}</div>
-                    <div className="rpt-cwv-value">{val.display || '—'}</div>
-                    <MetricBadge value={val.score} />
-                  </div>
-                )
-            )}
-          </div>
-        </div>
-      )}
-    </>
+      <div className="rpt-criterion-detail">{c.detail}</div>
+      <div className="rpt-criterion-bar">
+        <div className={`rpt-criterion-bar-fill ${getClass(c.percentage)}`} style={{ width: `${c.percentage}%` }} />
+      </div>
+      {c.why && <div className="rpt-criterion-why">💡 {c.why}</div>}
+    </div>
   );
 }
 
-/* ── Instagram Section ── */
-function InstagramSection({ data }) {
-  const stats = [
-    {
-      label: 'Followers',
-      value: data.followers?.toLocaleString('fr-FR') || '—',
-      icon: '👥',
-    },
-    {
-      label: 'Publications',
-      value: data.posts_count || '—',
-      icon: '📸',
-    },
-    {
-      label: 'Engagement',
-      value: data.engagement_rate ? `${data.engagement_rate}%` : '—',
-      icon: '❤️',
-    },
-    {
-      label: 'Régularité',
-      value: data.posting_frequency?.regularity || '—',
-      icon: '📅',
-    },
-  ];
-
-  const criteria = [
-    {
-      name: 'Taux d\'engagement',
-      score: data.engagement_rate >= 3 ? 85 : data.engagement_rate >= 1 ? 50 : 20,
-      detail: data.engagement_rate >= 3
-        ? 'Excellent — Au-dessus de la moyenne du marché'
-        : data.engagement_rate >= 1
-        ? 'Moyen — Potentiel d\'amélioration'
-        : 'Faible — Action urgente nécessaire',
-    },
-    {
-      name: 'Utilisation des Reels',
-      score: data.reels_analysis?.has_reels
-        ? Math.min(95, data.reels_analysis.reels_ratio * 2)
-        : 10,
-      detail: data.reels_analysis?.has_reels
-        ? `${data.reels_analysis.reels_count} Reels (${data.reels_analysis.reels_ratio}% du contenu)`
-        : 'Aucun Reel détecté — Format prioritaire en 2025',
-    },
-    {
-      name: 'Compte Business',
-      score: data.is_business ? 100 : 0,
-      detail: data.is_business
-        ? 'Profil professionnel activé ✅'
-        : 'Passez en compte professionnel pour accéder aux statistiques',
-    },
-    {
-      name: 'Fréquence de publication',
-      score: data.posting_frequency?.regularity === 'regular' ? 80 :
-             data.posting_frequency?.regularity === 'irregular' ? 40 : 20,
-      detail: data.posting_frequency?.average_per_week
-        ? `~${data.posting_frequency.average_per_week} posts/semaine`
-        : 'Données insuffisantes',
-    },
-  ];
-
+function BenchmarkBar({ label, score, max, isSector }) {
+  const pct = Math.round((score / max) * 100);
   return (
-    <>
-      {/* Instagram Stats Grid */}
-      <div className="rpt-ig-stats">
-        {stats.map((s, idx) => (
-          <div key={idx} className="rpt-ig-stat">
-            <div className="rpt-ig-stat-icon">{s.icon}</div>
-            <div className="rpt-ig-stat-value">{s.value}</div>
-            <div className="rpt-ig-stat-label">{s.label}</div>
-          </div>
-        ))}
+    <div className="rpt-benchmark-row">
+      <div className="rpt-benchmark-label">{label}</div>
+      <div className="rpt-benchmark-bar-container">
+        <div className={`rpt-benchmark-bar-fill ${isSector ? 'sector' : getClass(pct)}`} style={{ width: `${pct}%` }} />
       </div>
-
-      {/* Instagram Criteria Cards */}
-      <div className="rpt-criteria-grid">
-        {criteria.map((c, idx) => (
-          <div key={idx} className="rpt-criterion-card">
-            <div className="rpt-criterion-header">
-              <span className="rpt-criterion-name">{c.name}</span>
-              <span className={`rpt-criterion-score ${getScoreClass(c.score)}`}>
-                {c.score}/100
-              </span>
-            </div>
-            <div className="rpt-criterion-detail">{c.detail}</div>
-            <div className="rpt-criterion-bar">
-              <div
-                className={`rpt-criterion-bar-fill ${getScoreClass(c.score)}`}
-                style={{ width: `${c.score}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
+      <div className="rpt-benchmark-score">{score}/100</div>
+    </div>
   );
 }
 
-/* ── Recommendation Card ── */
-function RecommendationCard({ index, reco }) {
-  const priorityClass =
-    reco.priority === 'high' ? 'priority-high' :
-    reco.priority === 'medium' ? 'priority-medium' : 'priority-low';
-
+function RecoCard({ index, reco }) {
+  const isQuickWin = reco.effort === 'quick_win';
   return (
-    <div className={`rpt-reco-card ${priorityClass}`}>
+    <div className={`rpt-reco-card priority-${reco.priority}`}>
       <div className="rpt-reco-number">{String(index).padStart(2, '0')}</div>
       <div className="rpt-reco-content">
         <div className="rpt-reco-header">
-          <span className={`rpt-reco-priority ${priorityClass}`}>
-            {reco.priority === 'high' ? '🔴 Priorité haute' :
-             reco.priority === 'medium' ? '🟡 Priorité moyenne' : '🟢 Suggestion'}
+          <span className={`rpt-reco-priority priority-${reco.priority}`}>
+            {reco.priority === 'high' ? '🔴 Priorité haute' : reco.priority === 'medium' ? '🟡 Priorité moyenne' : '🟢 Suggestion'}
           </span>
+          {isQuickWin && <span className="rpt-reco-effort">⚡ Quick Win</span>}
+          {!isQuickWin && <span className="rpt-reco-effort rpt-reco-impact-majeur">🚀 Impact Majeur</span>}
         </div>
         <h4 className="rpt-reco-title">{reco.title}</h4>
+        <p className="rpt-reco-pillar">{reco.pillar} — {reco.title} ({reco.score_display})</p>
         <p className="rpt-reco-desc">{reco.description}</p>
-        {reco.impact && (
-          <div className="rpt-reco-impact">
-            <strong>💡 Impact attendu :</strong> {reco.impact}
-          </div>
-        )}
+        <div className="rpt-reco-gain">💰 Gain potentiel : <strong>{reco.gain_potential}</strong></div>
       </div>
     </div>
   );
 }
 
-/* ── Metric Badge ── */
-function MetricBadge({ value, display }) {
-  if (value === null || value === undefined) return <span>—</span>;
-  const cls = value >= 80 ? 'good' : value >= 50 ? 'average' : 'poor';
-  return <span className={`metric-badge ${cls}`}>{display || value}</span>;
+/* ═══ LEGACY FALLBACK ═══ */
+function LegacyReport({ audit }) {
+  return (
+    <div className="rpt-section">
+      <SectionHeader icon="📊" title="Résultats" subtitle="Données brutes de l'audit" />
+      {audit.gemini_synthesis && (
+        <div className="rpt-synthesis-raw" dangerouslySetInnerHTML={{ __html: formatMd(audit.gemini_synthesis) }} />
+      )}
+    </div>
+  );
 }
 
-
-/* ═══════════════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════════════ */
-
-function getScoreClass(score) {
-  if (score >= 80) return 'score-excellent';
-  if (score >= 60) return 'score-good';
-  if (score >= 40) return 'score-average';
+/* ═══ HELPERS ═══ */
+function getClass(pct) {
+  if (pct >= 80) return 'score-excellent';
+  if (pct >= 60) return 'score-good';
+  if (pct >= 40) return 'score-average';
   return 'score-poor';
 }
 
-function formatCWVName(key) {
-  const names = {
-    first_contentful_paint: 'First Contentful Paint',
-    largest_contentful_paint: 'Largest Contentful Paint',
-    total_blocking_time: 'Total Blocking Time',
-    cumulative_layout_shift: 'Cumulative Layout Shift',
-    speed_index: 'Speed Index',
-  };
-  return names[key] || key;
+function getRatingLabel(score, max) {
+  const pct = (score / max) * 100;
+  if (pct >= 80) return 'Excellent';
+  if (pct >= 60) return 'Bon';
+  if (pct >= 40) return 'À améliorer';
+  return 'Critique';
 }
 
-function formatMarkdown(text) {
+function formatMd(text) {
   if (!text) return '';
   return text
     .replace(/### (.*)/g, '<h4>$1</h4>')
@@ -483,67 +273,4 @@ function formatMarkdown(text) {
     .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
     .replace(/\n\n/g, '<br><br>')
     .replace(/\n/g, '<br>');
-}
-
-/**
- * Parse la synthèse Gemini pour extraire les sections structurées.
- * Retourne { strengths, weaknesses, opportunities, recommendations, rawContent }
- */
-function parseGeminiSynthesis(text) {
-  if (!text) return null;
-
-  const result = {
-    strengths: [],
-    weaknesses: [],
-    opportunities: [],
-    recommendations: [],
-    rawContent: null,
-  };
-
-  // Essayer d'extraire les sections
-  const strengthsMatch = text.match(/(?:points?\s*forts?|forces?|atouts?)[\s:]*\n([\s\S]*?)(?=\n##|\n\*\*(?:faiblesse|axe|point.*amélioration|opportunit|recommandation)|$)/i);
-  const weaknessesMatch = text.match(/(?:faiblesses?|axes?\s*d.*am[eé]lioration|points?\s*faibles?)[\s:]*\n([\s\S]*?)(?=\n##|\n\*\*(?:opportunit|recommandation|action)|$)/i);
-  const opportunitiesMatch = text.match(/(?:opportunit[eé]s?)[\s:]*\n([\s\S]*?)(?=\n##|\n\*\*(?:recommandation|action|prochaine)|$)/i);
-  const recoMatch = text.match(/(?:recommandations?|actions?\s*prioritaires?)[\s:]*\n([\s\S]*?)$/i);
-
-  const extractItems = (match) => {
-    if (!match) return [];
-    return match[1]
-      .split('\n')
-      .map((line) => line.replace(/^[\s\-\*•]+/, '').trim())
-      .filter((line) => line.length > 5)
-      .slice(0, 5);
-  };
-
-  result.strengths = extractItems(strengthsMatch);
-  result.weaknesses = extractItems(weaknessesMatch);
-  result.opportunities = extractItems(opportunitiesMatch);
-
-  // Parse recommendations en objets structurés
-  if (recoMatch) {
-    const lines = recoMatch[1].split('\n').filter((l) => l.trim().length > 5);
-    lines.forEach((line) => {
-      const clean = line.replace(/^[\s\-\*•\d.]+/, '').trim();
-      if (clean.length < 10) return;
-      const isHigh = /urgent|critique|imm[eé]diat|priorit|important/i.test(clean);
-      const isMedium = /moyen|am[eé]lior|optimis/i.test(clean);
-      result.recommendations.push({
-        title: clean.split(/[.!:]/)[0].trim(),
-        description: clean,
-        priority: isHigh ? 'high' : isMedium ? 'medium' : 'low',
-        impact: null,
-      });
-    });
-  }
-
-  // Si aucune section structurée trouvée, garder le raw
-  if (
-    result.strengths.length === 0 &&
-    result.weaknesses.length === 0 &&
-    result.recommendations.length === 0
-  ) {
-    result.rawContent = text;
-  }
-
-  return result;
 }

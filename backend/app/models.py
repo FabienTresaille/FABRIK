@@ -66,14 +66,20 @@ class Audit(Base):
     pagespeed_data = Column(JSONB)
     apify_data = Column(JSONB)
 
+    # Données du formulaire wizard
+    form_data = Column(JSONB)
+
     # Synthèse IA Gemini
     gemini_synthesis = Column(Text)
 
-    # Scores
+    # Scores simples (legacy)
     score_global = Column(Integer)
     score_performance = Column(Integer)
     score_seo = Column(Integer)
     score_social = Column(Integer)
+
+    # Scores détaillés (moteur de scoring)
+    scores_data = Column(JSONB)
 
     # Métadonnées
     error_message = Column(Text)

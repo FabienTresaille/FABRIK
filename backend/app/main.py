@@ -40,6 +40,7 @@ from app.schemas import (
     HealthResponse,
 )
 from app.services import apify_service, pagespeed_service, gemini_service, n8n_service
+from app.scoring import calculate_scores
 
 # ============================================
 # Configuration du logging
@@ -304,6 +305,27 @@ async def launch_audit(
     """
     logger.info(f"🚀 Audit 360° par {current_user.email} pour {request.company_name}")
 
+    # --- Collecter les form_data du wizard ---
+    form_data = {
+        "company_sector": request.company_sector,
+        "site_age": request.site_age,
+        "facebook_url": request.facebook_url,
+        "linkedin_url": request.linkedin_url,
+        "tiktok_url": request.tiktok_url,
+        "google_business_url": request.google_business_url,
+        "ads_active": request.ads_active,
+        "budget": request.budget,
+        "conversion_tracking": request.conversion_tracking,
+        "acquisition_strategy": request.acquisition_strategy,
+        "reviews": request.reviews,
+        "visual_coherence": request.visual_coherence,
+        "client_objective": request.client_objective,
+        "contact_firstname": request.contact_firstname,
+        "contact_lastname": request.contact_lastname,
+        "website_url": request.website_url,
+        "instagram_handle": request.instagram_handle,
+    }
+
     # --- Étape 1 : Créer ou récupérer le client ---
     client = db.query(Client).filter(
         Client.company_name == request.company_name
@@ -315,6 +337,8 @@ async def launch_audit(
             website_url=request.website_url,
             instagram_handle=request.instagram_handle,
             contact_email=request.contact_email,
+            contact_phone=request.contact_phone,
+            notes=request.contact_notes,
             user_id=current_user.id,
         )
         db.add(client)
@@ -322,11 +346,12 @@ async def launch_audit(
         db.refresh(client)
         logger.info(f"✅ Client créé : #{client.id} — {client.company_name}")
     else:
-        # Mettre à jour les infos si besoin
         client.website_url = request.website_url
         client.instagram_handle = request.instagram_handle
         if request.contact_email:
             client.contact_email = request.contact_email
+        if request.contact_phone:
+            client.contact_phone = request.contact_phone
         db.commit()
         logger.info(f"♻️ Client existant mis à jour : #{client.id}")
 
@@ -334,6 +359,7 @@ async def launch_audit(
     audit = Audit(
         client_id=client.id,
         status="processing",
+        form_data=form_data,
     )
     db.add(audit)
     db.commit()
@@ -350,7 +376,13 @@ async def launch_audit(
 
         logger.info("✅ Extraction terminée — Apify + PageSpeed")
 
-        # --- Étape 4 : Synthèse stratégique via Gemini ---
+        # --- Étape 4 : Calcul des scores (moteur de scoring) ---
+        logger.info("🧮 Calcul des scores détaillés (25 critères)...")
+        scores_data = calculate_scores(pagespeed_result, apify_result, form_data)
+        score_global = scores_data["score_global"]
+        logger.info(f"✅ Score global calculé : {score_global}/100")
+
+        # --- Étape 5 : Synthèse stratégique via Gemini ---
         logger.info("🧠 Envoi à Gemini pour synthèse stratégique...")
         gemini_result = await gemini_service.synthesize(
             pagespeed_data=pagespeed_result,
@@ -359,24 +391,12 @@ async def launch_audit(
         )
         logger.info("✅ Synthèse Gemini générée")
 
-        # --- Étape 5 : Calcul des scores ---
+        # Scores legacy pour compatibilité
         pagespeed_summary = pagespeed_result.get("summary", {})
-        score_global = gemini_result.get("score_global", 0)
         score_performance = pagespeed_summary.get("performance")
         score_seo = pagespeed_summary.get("seo")
-
-        # Score social basé sur l'engagement
-        score_social = None
-        if apify_result.get("found"):
-            engagement = apify_result.get("engagement_rate", 0)
-            if engagement >= 5:
-                score_social = 90
-            elif engagement >= 3:
-                score_social = 70
-            elif engagement >= 1:
-                score_social = 50
-            else:
-                score_social = 30
+        p2 = scores_data["pillars"][1] if len(scores_data.get("pillars", [])) > 1 else {}
+        score_social = round((p2.get("score", 0) / max(p2.get("max", 1), 1)) * 100)
 
         # --- Étape 6 : Sauvegarde en DB ---
         audit.pagespeed_data = pagespeed_result
@@ -386,6 +406,7 @@ async def launch_audit(
         audit.score_performance = score_performance
         audit.score_seo = score_seo
         audit.score_social = score_social
+        audit.scores_data = scores_data
         audit.status = "complete"
         audit.completed_at = datetime.now(timezone.utc)
         db.commit()
@@ -428,9 +449,11 @@ async def launch_audit(
                 score_seo=score_seo,
                 score_social=score_social,
             ),
+            scores_data=scores_data,
             pagespeed_data=pagespeed_result,
             apify_data=apify_result,
             gemini_synthesis=gemini_result.get("synthesis"),
+            form_data=form_data,
             created_at=audit.created_at,
             completed_at=audit.completed_at,
         )
@@ -468,9 +491,11 @@ def get_audit(audit_id: int, db: Session = Depends(get_db)):
             score_seo=audit.score_seo,
             score_social=audit.score_social,
         ),
+        scores_data=audit.scores_data,
         pagespeed_data=audit.pagespeed_data,
         apify_data=audit.apify_data,
         gemini_synthesis=audit.gemini_synthesis,
+        form_data=audit.form_data,
         error_message=audit.error_message,
         created_at=audit.created_at,
         completed_at=audit.completed_at,

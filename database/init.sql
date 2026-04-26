@@ -71,15 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ==============================================
--- Compte Admin par défaut
--- Le mot de passe devra être changé au premier login
--- Hash bcrypt de "changeme" (à remplacer en production)
+-- Note : Le compte admin est créé automatiquement
+-- via l'inscription avec l'email admin@alsek.fr
+-- Il recevra automatiquement le rôle 'admin' et sera actif immédiatement.
+-- Tous les autres comptes seront en attente d'approbation.
 -- ==============================================
-INSERT INTO users (email, hashed_password, full_name, role)
-VALUES (
-    'admin@alsek.fr',
-    '$2b$12$LJ3m4ys3LzQnN0NjG0HJxOKg0GzBcR3MHx3YmFJKjRAFvFv6WEFXK',
-    'Admin Alsek',
-    'admin'
-)
-ON CONFLICT (email) DO NOTHING;

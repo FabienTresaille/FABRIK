@@ -70,6 +70,8 @@ export default function RegisterPage() {
     if (error) setError(null);
   };
 
+  const [success, setSuccess] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -110,10 +112,15 @@ export default function RegisterPage() {
         throw new Error(data.detail || 'Erreur lors de l\'inscription.');
       }
 
-      // Stocker le token et rediriger
-      localStorage.setItem('fabrik_token', data.access_token);
-      localStorage.setItem('fabrik_user', JSON.stringify(data.user));
-      router.push('/');
+      // Vérifier si le compte est en attente d'approbation
+      if (data.pending_approval) {
+        setSuccess(data.message);
+      } else {
+        // Admin → connexion immédiate
+        localStorage.setItem('fabrik_token', data.access_token);
+        localStorage.setItem('fabrik_user', JSON.stringify(data.user));
+        router.push('/');
+      }
     } catch (err) {
       setError(err.message);
       if (window.grecaptcha) {
@@ -131,6 +138,17 @@ export default function RegisterPage() {
       <main className="main-content">
         <section className="auth-page">
           <div className="auth-card" id="register-card">
+            {success ? (
+              <div className="auth-success" id="register-success">
+                <div className="auth-success-icon">✅</div>
+                <h2>Inscription enregistrée !</h2>
+                <p className="auth-success-message">{success}</p>
+                <a href="/login" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>
+                  ← Retour à la connexion
+                </a>
+              </div>
+            ) : (
+            <>
             <h2>Créer un compte</h2>
             <p className="auth-card-desc">
               Inscrivez-vous pour lancer votre premier audit 360°.
@@ -241,6 +259,8 @@ export default function RegisterPage() {
               Déjà un compte ?{' '}
               <a href="/login">Se connecter</a>
             </div>
+            </>
+            )}
           </div>
         </section>
       </main>

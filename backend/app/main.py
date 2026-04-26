@@ -26,9 +26,11 @@ from app.auth import (
 )
 from app.schemas import (
     RegisterRequest,
+    RegisterResponse,
     LoginRequest,
     TokenResponse,
     UserResponse,
+    UserAdminResponse,
     AuditRequest,
     AuditResponse,
     AuditScores,
@@ -93,11 +95,16 @@ def health_check():
 # AUTHENTIFICATION
 # ============================================
 
-@app.post("/api/v1/auth/register", response_model=TokenResponse, tags=["Auth"])
+# Email du super administrateur
+ADMIN_EMAIL = "admin@alsek.fr"
+
+
+@app.post("/api/v1/auth/register", response_model=RegisterResponse, tags=["Auth"])
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """
     Inscription d'un nouvel utilisateur.
-    Vérifie le CAPTCHA, crée le compte, et retourne un JWT.
+    - admin@alsek.fr → rôle admin, actif immédiatement.
+    - Tous les autres → is_active=False, en attente d'approbation admin.
     """
     # Vérification reCAPTCHA
     await verify_recaptcha(request.captcha_token)
@@ -110,31 +117,41 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
             detail="Un compte existe déjà avec cet email.",
         )
 
-    # Créer l'utilisateur
+    # Déterminer le rôle et l'état d'activation
+    is_admin = request.email.lower() == ADMIN_EMAIL.lower()
     user = User(
-        email=request.email,
+        email=request.email.lower(),
         hashed_password=hash_password(request.password),
         full_name=request.full_name,
-        role="client",
+        role="admin" if is_admin else "client",
+        is_active=is_admin,  # Admin actif immédiatement, les autres en attente
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    logger.info(f"✅ Nouvel utilisateur inscrit : {user.email} (#{user.id})")
 
-    # Générer le JWT
-    access_token = create_access_token(data={"sub": user.id, "role": user.role})
-
-    return TokenResponse(
-        access_token=access_token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            full_name=user.full_name,
-            role=user.role,
-            is_active=user.is_active,
-        ),
-    )
+    if is_admin:
+        logger.info(f"👑 Super Admin créé : {user.email} (#{user.id})")
+        access_token = create_access_token(data={"sub": user.id, "role": user.role})
+        return RegisterResponse(
+            access_token=access_token,
+            user=UserResponse(
+                id=user.id, email=user.email, full_name=user.full_name,
+                role=user.role, is_active=user.is_active,
+            ),
+            pending_approval=False,
+        )
+    else:
+        logger.info(f"⏳ Inscription en attente d'approbation : {user.email} (#{user.id})")
+        return RegisterResponse(
+            access_token=None,
+            user=UserResponse(
+                id=user.id, email=user.email, full_name=user.full_name,
+                role=user.role, is_active=user.is_active,
+            ),
+            pending_approval=True,
+            message="Votre inscription a été enregistrée. Un administrateur doit approuver votre compte avant que vous puissiez vous connecter.",
+        )
 
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse, tags=["Auth"])
@@ -157,7 +174,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Compte désactivé. Contactez l'administrateur.",
+            detail="Votre compte est en attente d'approbation par un administrateur.",
         )
 
     logger.info(f"🔑 Connexion réussie : {user.email}")
@@ -187,6 +204,82 @@ def get_me(current_user: User = Depends(get_current_user)):
         role=current_user.role,
         is_active=current_user.is_active,
     )
+
+
+# ============================================
+# ADMINISTRATION — Gestion des utilisateurs
+# ============================================
+
+@app.get("/api/v1/admin/users", response_model=list[UserAdminResponse], tags=["Admin"])
+def list_users(
+    status_filter: str = "pending",
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """
+    Liste les utilisateurs. Filtres : 'pending' (en attente), 'active', 'all'.
+    Réservé aux administrateurs.
+    """
+    query = db.query(User)
+
+    if status_filter == "pending":
+        query = query.filter(User.is_active == False)
+    elif status_filter == "active":
+        query = query.filter(User.is_active == True)
+    # 'all' → pas de filtre
+
+    users = query.order_by(User.created_at.desc()).all()
+    return [
+        UserAdminResponse(
+            id=u.id, email=u.email, full_name=u.full_name,
+            role=u.role, is_active=u.is_active, created_at=u.created_at,
+        )
+        for u in users
+    ]
+
+
+@app.post("/api/v1/admin/users/{user_id}/approve", response_model=UserAdminResponse, tags=["Admin"])
+def approve_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Approuve un utilisateur en attente. Réservé aux administrateurs."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé.")
+
+    user.is_active = True
+    db.commit()
+    db.refresh(user)
+    logger.info(f"✅ Utilisateur approuvé par {admin.email} : {user.email} (#{user.id})")
+
+    return UserAdminResponse(
+        id=user.id, email=user.email, full_name=user.full_name,
+        role=user.role, is_active=user.is_active, created_at=user.created_at,
+    )
+
+
+@app.delete("/api/v1/admin/users/{user_id}", tags=["Admin"])
+def reject_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Rejette et supprime un utilisateur en attente. Réservé aux administrateurs."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé.")
+
+    if user.role == "admin":
+        raise HTTPException(status_code=403, detail="Impossible de supprimer un administrateur.")
+
+    email = user.email
+    db.delete(user)
+    db.commit()
+    logger.info(f"🗑️ Utilisateur rejeté par {admin.email} : {email} (#{user_id})")
+
+    return {"status": "deleted", "user_id": user_id, "email": email}
 
 
 # ============================================

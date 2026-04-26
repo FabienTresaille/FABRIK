@@ -45,6 +45,28 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class UserAdminResponse(BaseModel):
+    """Informations utilisateur pour l'admin (avec date de création)."""
+    id: int
+    email: str
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class RegisterResponse(BaseModel):
+    """Réponse d'inscription — peut contenir un token OU un message d'attente."""
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    user: UserResponse
+    pending_approval: bool = False
+    message: Optional[str] = None
+
+
 # ============================================
 # AUDIT
 # ============================================

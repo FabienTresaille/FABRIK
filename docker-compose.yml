@@ -59,7 +59,11 @@ services:
   # FRONTEND — Next.js (fabrik.alsek.fr)
   # ============================================
   fabrik-front:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://api.fabrik.alsek.fr
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY}
     container_name: fabrik-front
     restart: unless-stopped
     environment:

@@ -29,6 +29,7 @@ export default function AuditForm() {
     setError(null);
 
     try {
+      console.log('[FABRIK] Token envoyé:', token ? `${token.substring(0, 20)}...` : 'NULL');
       const response = await fetch(`${API_URL}/api/v1/audit`, {
         method: 'POST',
         headers: {
@@ -40,8 +41,9 @@ export default function AuditForm() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
+        console.log('[FABRIK] Erreur audit:', response.status, data);
         if (response.status === 401) {
-          throw new Error('Session expirée. Veuillez vous reconnecter.');
+          throw new Error(data.detail || 'Session expirée. Veuillez vous reconnecter.');
         }
         throw new Error(data.detail || `Erreur serveur (${response.status})`);
       }

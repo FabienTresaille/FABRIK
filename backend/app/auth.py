@@ -60,11 +60,15 @@ def decode_access_token(token: str) -> dict:
     settings = get_settings()
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        logger.info(f"✅ Token décodé — sub={payload.get('sub')}")
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"❌ Échec décodage JWT : {type(e).__name__}: {str(e)}")
+        logger.error(f"   SECRET_KEY (5 premiers chars): {settings.SECRET_KEY[:5]}...")
+        logger.error(f"   Token (20 premiers chars): {token[:20]}...")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalide ou expiré",
+            detail=f"Token invalide ou expiré: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

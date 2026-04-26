@@ -1092,6 +1092,692 @@ a:hover {
 }
 
 /* ============================================
+   REPORT — Hero
+   ============================================ */
+.rpt-hero {
+  min-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem 4rem;
+  position: relative;
+}
+
+.rpt-hero-badge { margin-bottom: 1.5rem; }
+
+.badge-violet {
+  display: inline-block;
+  padding: 6px 18px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--color-primary-light);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+}
+
+.rpt-hero-company {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.rpt-hero-title {
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin-bottom: 2rem;
+}
+
+.rpt-hero-score { margin: 1.5rem 0; }
+
+.rpt-score-circle-lg {
+  width: 200px;
+  height: 200px;
+}
+
+.rpt-score-circle-lg .rpt-score-value-lg {
+  font-size: 3.5rem;
+}
+
+.rpt-hero-rating {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  padding: 8px 24px;
+  border-radius: 999px;
+}
+.rpt-hero-rating.score-excellent { color: var(--color-success); background: rgba(16, 185, 129, 0.1); }
+.rpt-hero-rating.score-good { color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+.rpt-hero-rating.score-average { color: var(--color-warning); background: rgba(245, 158, 11, 0.1); }
+.rpt-hero-rating.score-poor { color: var(--color-danger); background: rgba(239, 68, 68, 0.1); }
+
+.rpt-hero-date {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 1.5rem;
+}
+
+.rpt-hero-scroll {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  animation: rptFloat 3s ease-in-out infinite;
+}
+
+@keyframes rptFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-10px); }
+}
+
+.rpt-scroll-arrow {
+  width: 20px;
+  height: 20px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+}
+
+/* ============================================
+   REPORT — Container & Sections
+   ============================================ */
+.rpt-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.rpt-section {
+  padding: 4rem 0;
+  position: relative;
+}
+
+.rpt-section-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.rpt-section-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.rpt-section-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.rpt-section-subtitle {
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+}
+
+.rpt-divider {
+  width: 60px;
+  height: 3px;
+  background: var(--gradient-brand);
+  border-radius: 999px;
+  margin: 0.75rem auto;
+}
+
+/* ============================================
+   REPORT — Score Circles (shared)
+   ============================================ */
+.rpt-score-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
+  height: 110px;
+}
+
+.rpt-score-circle svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.rpt-score-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 6;
+}
+
+.rpt-score-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rpt-score-fill-animated {
+  animation: rptScoreFill 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.score-excellent .rpt-score-fill { stroke: var(--color-success); }
+.score-good .rpt-score-fill { stroke: #60a5fa; }
+.score-average .rpt-score-fill { stroke: var(--color-warning); }
+.score-poor .rpt-score-fill { stroke: var(--color-danger); }
+
+.rpt-score-value {
+  font-size: 2rem;
+  font-weight: 800;
+  z-index: 1;
+  color: var(--text-primary);
+}
+
+.rpt-score-label {
+  position: absolute;
+  bottom: 12px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ============================================
+   REPORT — Pillars
+   ============================================ */
+.rpt-pillars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.rpt-pillar-card {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  transition: all 0.3s ease;
+}
+
+.rpt-pillar-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.rpt-pillar-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+
+.rpt-pillar-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   REPORT — Summary Cards (Forces/Faiblesses/Opportunités)
+   ============================================ */
+.rpt-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.rpt-summary-card {
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid;
+}
+
+.rpt-summary-strengths { border-left-color: var(--color-success); }
+.rpt-summary-weaknesses { border-left-color: var(--color-danger); }
+.rpt-summary-opportunities { border-left-color: var(--color-primary-light); }
+
+.rpt-summary-card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+
+.rpt-summary-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.rpt-summary-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rpt-summary-list li {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding-left: 1.25rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.rpt-summary-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.rpt-summary-strengths .rpt-summary-list li::before { background: var(--color-success); }
+.rpt-summary-weaknesses .rpt-summary-list li::before { background: var(--color-danger); }
+.rpt-summary-opportunities .rpt-summary-list li::before { background: var(--color-primary-light); }
+
+.rpt-synthesis-raw {
+  margin-top: 2rem;
+  padding: 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  line-height: 1.7;
+  font-size: 0.9rem;
+}
+
+/* ============================================
+   REPORT — Criteria Cards (Site Web & Instagram)
+   ============================================ */
+.rpt-criteria-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.rpt-criterion-card {
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rpt-criterion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rpt-criterion-icon { font-size: 1.1rem; }
+
+.rpt-criterion-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.rpt-criterion-score {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.rpt-criterion-score.score-excellent { color: var(--color-success); }
+.rpt-criterion-score.score-good { color: #60a5fa; }
+.rpt-criterion-score.score-average { color: var(--color-warning); }
+.rpt-criterion-score.score-poor { color: var(--color-danger); }
+
+.rpt-criterion-detail {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.rpt-criterion-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rpt-criterion-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rpt-criterion-bar-fill.score-excellent { background: var(--color-success); }
+.rpt-criterion-bar-fill.score-good { background: #60a5fa; }
+.rpt-criterion-bar-fill.score-average { background: var(--color-warning); }
+.rpt-criterion-bar-fill.score-poor { background: var(--color-danger); }
+
+/* ============================================
+   REPORT — Core Web Vitals
+   ============================================ */
+.rpt-cwv { margin-top: 2rem; }
+
+.rpt-cwv-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.rpt-cwv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.rpt-cwv-item {
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.rpt-cwv-name {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.rpt-cwv-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+/* ============================================
+   REPORT — Instagram Stats
+   ============================================ */
+.rpt-ig-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.rpt-ig-stat {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.rpt-ig-stat-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+
+.rpt-ig-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.rpt-ig-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* ============================================
+   REPORT — Recommendations
+   ============================================ */
+.rpt-recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.rpt-reco-card {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.rpt-reco-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.rpt-reco-card.priority-high::before { background: var(--color-danger); }
+.rpt-reco-card.priority-medium::before { background: var(--color-warning); }
+.rpt-reco-card.priority-low::before { background: var(--color-info, #60a5fa); }
+
+.rpt-reco-number {
+  font-size: 2.5rem;
+  font-weight: 900;
+  opacity: 0.12;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 50px;
+}
+
+.rpt-reco-content { flex: 1; }
+
+.rpt-reco-priority {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rpt-reco-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+.rpt-reco-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.rpt-reco-impact {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  padding: 0.75rem;
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-primary-light);
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   REPORT — CTA
+   ============================================ */
+.rpt-cta {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.rpt-cta-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  margin-bottom: 1rem;
+}
+
+.rpt-cta-desc {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  line-height: 1.7;
+}
+
+.rpt-cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ============================================
+   REPORT — Toolbar
+   ============================================ */
+.rpt-toolbar {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.rpt-toolbar-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-md);
+}
+
+.rpt-toolbar-btn:hover {
+  background: var(--gradient-brand);
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   REPORT — Footer
+   ============================================ */
+.rpt-footer {
+  text-align: center;
+  padding: 3rem 2rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.rpt-footer a { color: var(--text-secondary); }
+
+.rpt-footer-logo {
+  font-weight: 800;
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ============================================
+   REPORT — Loading & Error
+   ============================================ */
+.rpt-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.rpt-loading-orb {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gradient-brand);
+  animation: pulse-orb 2s ease-in-out infinite;
+}
+
+.rpt-loading-text { text-align: center; }
+
+.rpt-loading-steps {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rpt-loading-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.rpt-loading-step.active {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.rpt-loading-step-icon { font-size: 1.2rem; }
+
+.rpt-error {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.rpt-error-icon { font-size: 4rem; }
+
+/* ============================================
+   REPORT — Responsive
+   ============================================ */
+@media (max-width: 1024px) {
+  .rpt-pillars { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
+  .rpt-summary-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .rpt-hero-title { font-size: 2rem; }
+  .rpt-section-title { font-size: 1.5rem; }
+  .rpt-criteria-grid { grid-template-columns: 1fr; }
+  .rpt-ig-stats { grid-template-columns: repeat(2, 1fr); }
+  .rpt-reco-card { flex-direction: column; }
+  .rpt-reco-number { font-size: 2rem; }
+  .rpt-cta-title { font-size: 1.75rem; }
+  .rpt-toolbar { bottom: 1rem; right: 1rem; }
+  .rpt-cwv-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================
+   REPORT — Print
+   ============================================ */
+@media print {
+  .no-print, .rpt-toolbar, .rpt-hero-scroll, .header { display: none !important; }
+  .rpt-section { page-break-inside: avoid; padding: 1.5rem 0; }
+  .rpt-hero { min-height: auto; padding: 2rem; }
+  .rpt-pillars { grid-template-columns: repeat(3, 1fr) !important; }
+  .rpt-criteria-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .rpt-summary-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* ============================================
    Footer
    ============================================ */
 .footer {

@@ -47,6 +47,7 @@ export default function DashboardSidebar() {
         <div className="dash-sidebar-label">OUTILS</div>
         <NavItem href="/" icon="🔍" label="Nouvel audit" active={false} />
         <NavItem href="/admin" icon="⚙️" label="Administration" active={false} />
+        <NavItem href="/dashboard/trash" icon="🗑️" label="Corbeille" active={pathname === '/dashboard/trash'} />
       </div>
 
       {/* User */}

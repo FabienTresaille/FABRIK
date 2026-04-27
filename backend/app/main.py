@@ -44,6 +44,7 @@ from app.schemas import (
     ClientDashboard,
     MonthlyMetricsCreate,
     MonthlyMetricsResponse,
+    TrashItem,
 )
 from app.services import apify_service, pagespeed_service, gemini_service, n8n_service
 from app.scoring import calculate_scores
@@ -581,7 +582,7 @@ def list_clients(
     current_user: User = Depends(get_current_user),
 ):
     """Liste les clients (protégé). Admin voit tout, client voit les siens."""
-    query = db.query(Client)
+    query = db.query(Client).filter(Client.deleted_at == None)
 
     if current_user.role != "admin":
         query = query.filter(Client.user_id == current_user.id)
@@ -615,10 +616,10 @@ def get_agency_stats(
     admin: User = Depends(get_admin_user),
 ):
     """KPIs agrégés de l'agence."""
-    total_audits = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete").scalar()
-    clients_onboarded = db.query(sql_func.count(Client.id)).filter(Client.onboarding_status == "onboarded").scalar()
-    avg_score = db.query(sql_func.avg(Audit.score_global)).filter(Audit.status == "complete").scalar()
-    pending = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete").scalar() - clients_onboarded
+    total_audits = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete", Audit.deleted_at == None).scalar()
+    clients_onboarded = db.query(sql_func.count(Client.id)).filter(Client.onboarding_status == "onboarded", Client.deleted_at == None).scalar()
+    avg_score = db.query(sql_func.avg(Audit.score_global)).filter(Audit.status == "complete", Audit.deleted_at == None).scalar()
+    pending = total_audits - clients_onboarded
 
     # Totaux depuis MonthlyMetrics
     total_revenue = db.query(sql_func.sum(MonthlyMetrics.revenue)).scalar() or 0
@@ -643,7 +644,7 @@ def get_pipeline(
     audits = (
         db.query(Audit, Client)
         .join(Client, Audit.client_id == Client.id)
-        .filter(Audit.status == "complete")
+        .filter(Audit.status == "complete", Audit.deleted_at == None, Client.deleted_at == None)
         .order_by(Audit.created_at.desc())
         .all()
     )
@@ -805,3 +806,117 @@ def upsert_client_metrics(
         db.commit()
         db.refresh(m)
         return {"status": "created", "id": m.id}
+
+# ============================================
+# CORBEILLE — Soft Delete (PROTÉGÉ ADMIN)
+# ============================================
+
+@app.delete("/api/v1/clients/{client_id}", tags=["Trash"])
+def delete_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Soft delete d'un client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+    
+    client.deleted_at = func.now()
+    # On soft delete aussi ses audits pour être propre
+    db.query(Audit).filter(Audit.client_id == client_id).update({"deleted_at": func.now()})
+    
+    db.commit()
+    return {"status": "deleted", "client_id": client.id}
+
+@app.delete("/api/v1/audits/{audit_id}", tags=["Trash"])
+def delete_audit(
+    audit_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Soft delete d'un audit."""
+    audit = db.query(Audit).filter(Audit.id == audit_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit non trouvé")
+    
+    audit.deleted_at = func.now()
+    db.commit()
+    return {"status": "deleted", "audit_id": audit.id}
+
+@app.get("/api/v1/trash", response_model=list[TrashItem], tags=["Trash"])
+def get_trash(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Liste tous les éléments dans la corbeille."""
+    trash_items = []
+    
+    clients = db.query(Client).filter(Client.deleted_at != None).all()
+    for c in clients:
+        days_left = 30 - (datetime.now(timezone.utc) - c.deleted_at).days
+        trash_items.append(TrashItem(
+            id=c.id, item_type="client", name=c.company_name, 
+            deleted_at=c.deleted_at, expires_in_days=max(0, days_left)
+        ))
+        
+    audits = db.query(Audit).filter(Audit.deleted_at != None).all()
+    for a in audits:
+        days_left = 30 - (datetime.now(timezone.utc) - a.deleted_at).days
+        trash_items.append(TrashItem(
+            id=a.id, item_type="audit", name=f"Audit #{a.id}", 
+            deleted_at=a.deleted_at, expires_in_days=max(0, days_left)
+        ))
+        
+    # Sort by deleted_at descending
+    trash_items.sort(key=lambda x: x.deleted_at, reverse=True)
+    return trash_items
+
+@app.post("/api/v1/trash/restore/{item_type}/{item_id}", tags=["Trash"])
+def restore_trash_item(
+    item_type: str,
+    item_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Restaure un élément de la corbeille."""
+    if item_type == "client":
+        item = db.query(Client).filter(Client.id == item_id).first()
+        if item: 
+            item.deleted_at = None
+            # Restaure aussi ses audits liés
+            db.query(Audit).filter(Audit.client_id == item_id, Audit.deleted_at != None).update({"deleted_at": None})
+    elif item_type == "audit":
+        item = db.query(Audit).filter(Audit.id == item_id).first()
+        if item: item.deleted_at = None
+    else:
+        raise HTTPException(status_code=400, detail="Type invalide")
+        
+    if not item:
+        raise HTTPException(status_code=404, detail="Élément non trouvé")
+        
+    db.commit()
+    return {"status": "restored"}
+
+@app.delete("/api/v1/trash/hard/{item_type}/{item_id}", tags=["Trash"])
+def hard_delete_trash_item(
+    item_type: str,
+    item_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Supprime définitivement un élément."""
+    if item_type == "client":
+        item = db.query(Client).filter(Client.id == item_id).first()
+        if item: db.delete(item)
+    elif item_type == "audit":
+        item = db.query(Audit).filter(Audit.id == item_id).first()
+        if item: db.delete(item)
+    else:
+        raise HTTPException(status_code=400, detail="Type invalide")
+        
+    if not item:
+        raise HTTPException(status_code=404, detail="Élément non trouvé")
+        
+    db.commit()
+    return {"status": "hard_deleted"}

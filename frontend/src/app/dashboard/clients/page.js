@@ -11,8 +11,7 @@ export default function ClientsPage() {
   const [pipeline, setPipeline] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!token) return;
+  const load = () => {
     fetch(`${API}/api/v1/dashboard/pipeline`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -22,7 +21,23 @@ export default function ClientsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (token) load();
   }, [token]);
+
+  const handleDelete = async (e, clientId) => {
+    e.preventDefault();
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce client ? Il sera placé dans la corbeille pendant 30 jours.")) return;
+    try {
+      await fetch(`${API}/api/v1/clients/${clientId}`, { 
+        method: 'DELETE', 
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      load();
+    } catch (e) { console.error(e); }
+  };
 
   if (loading) return <div className="dash-loading"><div className="loading-orb" /><p>Chargement...</p></div>;
 
@@ -37,7 +52,14 @@ export default function ClientsPage() {
 
       <div className="dash-clients-grid">
         {pipeline.map(item => (
-          <Link key={item.client_id} href={`/dashboard/clients/${item.client_id}`} className="dash-client-card">
+          <Link key={item.client_id} href={`/dashboard/clients/${item.client_id}`} className="dash-client-card" style={{position: 'relative'}}>
+            <button 
+              onClick={(e) => handleDelete(e, item.client_id)} 
+              style={{position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem'}}
+              title="Supprimer le client"
+            >
+              🗑️
+            </button>
             <div className="dash-client-card-header">
               <div className="dash-client-avatar">{item.company_name[0]}</div>
               <div>

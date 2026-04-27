@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS clients (
     onboarding_status VARCHAR(20) DEFAULT 'pending',
     onboarding_data JSONB,
 
+    deleted_at TIMESTAMP WITH TIME ZONE,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -68,6 +70,7 @@ CREATE TABLE IF NOT EXISTS audits (
     -- Métadonnées
     error_message TEXT,
     n8n_notified BOOLEAN DEFAULT FALSE,
+    deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP WITH TIME ZONE
 );

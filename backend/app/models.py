@@ -46,6 +46,8 @@ class Client(Base):
     onboarding_status = Column(String(20), default="pending")
     onboarding_data = Column(JSONB)
 
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -85,6 +87,7 @@ class Audit(Base):
     # Métadonnées
     error_message = Column(Text)
     n8n_notified = Column(Boolean, default=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True))
 

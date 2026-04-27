@@ -274,3 +274,10 @@ class MonthlyMetricsResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class TrashItem(BaseModel):
+    """Élément supprimé dans la corbeille."""
+    id: int
+    item_type: str  # 'client' ou 'audit'
+    name: str       # company_name ou identifiant de l'audit
+    deleted_at: datetime
+    expires_in_days: int

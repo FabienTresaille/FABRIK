@@ -27,6 +27,14 @@ export default function AgencyPage() {
     setLoading(false);
   }, [token]);
 
+  const handleDelete = async (auditId) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet audit ? Il sera placé dans la corbeille pendant 30 jours.")) return;
+    try {
+      await fetch(`${API}/api/v1/audits/${auditId}`, { method: 'DELETE', headers });
+      load();
+    } catch (e) { console.error(e); }
+  };
+
   useEffect(() => { if (token) load(); }, [token, load]);
 
   if (loading) return <div className="dash-loading"><div className="loading-orb" /><p>Chargement...</p></div>;
@@ -90,6 +98,7 @@ export default function AgencyPage() {
                     {item.onboarding_status === 'onboarded' && (
                       <Link href={`/dashboard/clients/${item.client_id}`} className="dash-action-btn">👁</Link>
                     )}
+                    <button className="dash-action-btn" onClick={() => handleDelete(item.audit_id)} style={{color: 'var(--color-danger)'}}>🗑️</button>
                   </td>
                 </tr>
               ))}

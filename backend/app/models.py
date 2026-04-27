@@ -125,6 +125,7 @@ class MonthlyMetrics(Base):
     ia_tasks = Column(Integer, default=0)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relations
     client = relationship("Client", back_populates="monthly_metrics")

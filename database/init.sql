@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS monthly_metrics (
     maintenance_tasks INTEGER DEFAULT 0,
     ia_tasks INTEGER DEFAULT 0,
 
+    deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

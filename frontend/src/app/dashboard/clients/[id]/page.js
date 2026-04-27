@@ -29,6 +29,14 @@ export default function ClientDashboardPage() {
     setLoading(false);
   }, [id, token]);
 
+  const handleDeleteMetric = async (metricId) => {
+    if (!window.confirm("Supprimer ce mois ? Il ira dans la corbeille pendant 30 jours.")) return;
+    try {
+      await fetch(`${API}/api/v1/metrics/${metricId}`, { method: 'DELETE', headers });
+      load();
+    } catch (e) { console.error(e); }
+  };
+
   useEffect(() => { if (token) load(); }, [token, load]);
 
   if (loading) return <div className="dash-loading"><div className="loading-orb" /><p>Chargement...</p></div>;
@@ -118,7 +126,7 @@ export default function ClientDashboardPage() {
                 <th>MOIS</th><th>PHASE</th><th>CA</th><th>ADS</th><th>ROAS</th>
                 <th>LEADS</th><th>CPL</th><th>DEALS</th><th>COÛT/DEAL</th>
                 <th>PANIER</th><th>CONV.</th><th>PIPELINE</th><th>GOOGLE</th>
-                <th>MAINT.</th><th>IA TÂCHES</th>
+                <th>MAINT.</th><th>IA TÂCHES</th><th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -139,6 +147,9 @@ export default function ClientDashboardPage() {
                   <td>{m.google_rating ? `${m.google_rating}⭐` : '—'}</td>
                   <td>{m.maintenance_tasks || 0}</td>
                   <td>{m.ia_tasks || 0}</td>
+                  <td>
+                    <button className="dash-action-btn" onClick={() => handleDeleteMetric(m.id)} style={{color: 'var(--color-danger)'}} title="Supprimer">🗑️</button>
+                  </td>
                 </tr>
               ))}
               {/* Total Row */}
@@ -153,10 +164,11 @@ export default function ClientDashboardPage() {
                   <td><strong>{totals.deals}</strong></td>
                   <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
                   <td><strong>{totals.ia_tasks}</strong></td>
+                  <td>—</td>
                 </tr>
               )}
               {metrics.length === 0 && (
-                <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                <tr><td colSpan={16} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                   Aucune donnée mensuelle. Cliquez sur &quot;+ Ajouter un mois&quot; pour commencer.
                 </td></tr>
               )}

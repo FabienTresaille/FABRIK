@@ -68,8 +68,8 @@ export default function TrashPage() {
             {items.map((item, idx) => (
               <tr key={idx}>
                 <td>
-                  <span className={`dash-phase-badge ${item.item_type === 'client' ? 'growth' : 'setup'}`}>
-                    {item.item_type === 'client' ? '👤 Client' : '📋 Audit'}
+                  <span className={`dash-phase-badge ${item.item_type === 'client' ? 'growth' : item.item_type === 'metric' ? 'plateau' : 'setup'}`}>
+                    {item.item_type === 'client' ? '👤 Client' : item.item_type === 'metric' ? '📊 Métrique' : '📋 Audit'}
                   </span>
                 </td>
                 <td className="dash-table-company">{item.name}</td>

@@ -25,6 +25,12 @@ def cleanup():
             db.delete(a)
             logger.info(f"Purge: Audit #{a.id} supprimé définitivement.")
             
+        # Hard delete metrics
+        old_metrics = db.query(MonthlyMetrics).filter(MonthlyMetrics.deleted_at != None, MonthlyMetrics.deleted_at < threshold).all()
+        for m in old_metrics:
+            db.delete(m)
+            logger.info(f"Purge: Métrique #{m.id} supprimée définitivement.")
+            
         db.commit()
         logger.info("Nettoyage de la corbeille terminé avec succès.")
     except Exception as e:

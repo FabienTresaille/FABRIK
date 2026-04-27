@@ -759,7 +759,7 @@ def get_client_metrics(
     """Récupérer les métriques mensuelles d'un client."""
     metrics = (
         db.query(MonthlyMetrics)
-        .filter(MonthlyMetrics.client_id == client_id)
+        .filter(MonthlyMetrics.client_id == client_id, MonthlyMetrics.deleted_at.is_(None))
         .order_by(MonthlyMetrics.month.asc())
         .all()
     )
@@ -844,6 +844,21 @@ def delete_audit(
     db.commit()
     return {"status": "deleted", "audit_id": audit.id}
 
+@app.delete("/api/v1/metrics/{metric_id}", tags=["Trash"])
+def delete_metric(
+    metric_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Soft delete d'une métrique mensuelle."""
+    metric = db.query(MonthlyMetrics).filter(MonthlyMetrics.id == metric_id).first()
+    if not metric:
+        raise HTTPException(status_code=404, detail="Métrique non trouvée")
+    
+    metric.deleted_at = sql_func.now()
+    db.commit()
+    return {"status": "deleted", "metric_id": metric.id}
+
 @app.get("/api/v1/trash", response_model=list[TrashItem], tags=["Trash"])
 def get_trash(
     db: Session = Depends(get_db),
@@ -870,6 +885,15 @@ def get_trash(
             deleted_at=a.deleted_at, expires_in_days=max(0, days_left)
         ))
         
+    metrics = db.query(MonthlyMetrics).filter(MonthlyMetrics.deleted_at.is_not(None)).all()
+    for m in metrics:
+        del_date = m.deleted_at.replace(tzinfo=None) if m.deleted_at else datetime.now()
+        days_left = 30 - (datetime.now() - del_date).days
+        trash_items.append(TrashItem(
+            id=m.id, item_type="metric", name=f"Métrique ({m.month.strftime('%Y-%m')})", 
+            deleted_at=m.deleted_at, expires_in_days=max(0, days_left)
+        ))
+        
     # Sort by deleted_at descending
     trash_items.sort(key=lambda x: x.deleted_at, reverse=True)
     return trash_items
@@ -890,6 +914,9 @@ def restore_trash_item(
             db.query(Audit).filter(Audit.client_id == item_id, Audit.deleted_at.is_not(None)).update({"deleted_at": None})
     elif item_type == "audit":
         item = db.query(Audit).filter(Audit.id == item_id).first()
+        if item: item.deleted_at = None
+    elif item_type == "metric":
+        item = db.query(MonthlyMetrics).filter(MonthlyMetrics.id == item_id).first()
         if item: item.deleted_at = None
     else:
         raise HTTPException(status_code=400, detail="Type invalide")
@@ -913,6 +940,9 @@ def hard_delete_trash_item(
         if item: db.delete(item)
     elif item_type == "audit":
         item = db.query(Audit).filter(Audit.id == item_id).first()
+        if item: db.delete(item)
+    elif item_type == "metric":
+        item = db.query(MonthlyMetrics).filter(MonthlyMetrics.id == item_id).first()
         if item: db.delete(item)
     else:
         raise HTTPException(status_code=400, detail="Type invalide")

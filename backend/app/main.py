@@ -582,7 +582,7 @@ def list_clients(
     current_user: User = Depends(get_current_user),
 ):
     """Liste les clients (protégé). Admin voit tout, client voit les siens."""
-    query = db.query(Client).filter(Client.deleted_at == None)
+    query = db.query(Client).filter(Client.deleted_at.is_(None))
 
     if current_user.role != "admin":
         query = query.filter(Client.user_id == current_user.id)
@@ -616,9 +616,9 @@ def get_agency_stats(
     admin: User = Depends(get_admin_user),
 ):
     """KPIs agrégés de l'agence."""
-    total_audits = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete", Audit.deleted_at == None).scalar()
-    clients_onboarded = db.query(sql_func.count(Client.id)).filter(Client.onboarding_status == "onboarded", Client.deleted_at == None).scalar()
-    avg_score = db.query(sql_func.avg(Audit.score_global)).filter(Audit.status == "complete", Audit.deleted_at == None).scalar()
+    total_audits = db.query(sql_func.count(Audit.id)).filter(Audit.status == "complete", Audit.deleted_at.is_(None)).scalar()
+    clients_onboarded = db.query(sql_func.count(Client.id)).filter(Client.onboarding_status == "onboarded", Client.deleted_at.is_(None)).scalar()
+    avg_score = db.query(sql_func.avg(Audit.score_global)).filter(Audit.status == "complete", Audit.deleted_at.is_(None)).scalar()
     pending = total_audits - clients_onboarded
 
     # Totaux depuis MonthlyMetrics
@@ -644,7 +644,7 @@ def get_pipeline(
     audits = (
         db.query(Audit, Client)
         .join(Client, Audit.client_id == Client.id)
-        .filter(Audit.status == "complete", Audit.deleted_at == None, Client.deleted_at == None)
+        .filter(Audit.status == "complete", Audit.deleted_at.is_(None), Client.deleted_at.is_(None))
         .order_by(Audit.created_at.desc())
         .all()
     )
@@ -852,17 +852,19 @@ def get_trash(
     """Liste tous les éléments dans la corbeille."""
     trash_items = []
     
-    clients = db.query(Client).filter(Client.deleted_at != None).all()
+    clients = db.query(Client).filter(Client.deleted_at.is_not(None)).all()
     for c in clients:
-        days_left = 30 - (datetime.now(timezone.utc) - c.deleted_at).days
+        del_date = c.deleted_at.replace(tzinfo=None) if c.deleted_at else datetime.now()
+        days_left = 30 - (datetime.now() - del_date).days
         trash_items.append(TrashItem(
             id=c.id, item_type="client", name=c.company_name, 
             deleted_at=c.deleted_at, expires_in_days=max(0, days_left)
         ))
         
-    audits = db.query(Audit).filter(Audit.deleted_at != None).all()
+    audits = db.query(Audit).filter(Audit.deleted_at.is_not(None)).all()
     for a in audits:
-        days_left = 30 - (datetime.now(timezone.utc) - a.deleted_at).days
+        del_date = a.deleted_at.replace(tzinfo=None) if a.deleted_at else datetime.now()
+        days_left = 30 - (datetime.now() - del_date).days
         trash_items.append(TrashItem(
             id=a.id, item_type="audit", name=f"Audit #{a.id}", 
             deleted_at=a.deleted_at, expires_in_days=max(0, days_left)
@@ -885,7 +887,7 @@ def restore_trash_item(
         if item: 
             item.deleted_at = None
             # Restaure aussi ses audits liés
-            db.query(Audit).filter(Audit.client_id == item_id, Audit.deleted_at != None).update({"deleted_at": None})
+            db.query(Audit).filter(Audit.client_id == item_id, Audit.deleted_at.is_not(None)).update({"deleted_at": None})
     elif item_type == "audit":
         item = db.query(Audit).filter(Audit.id == item_id).first()
         if item: item.deleted_at = None

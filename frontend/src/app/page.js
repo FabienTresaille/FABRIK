@@ -46,24 +46,7 @@ export default function HomePage() {
             audit stratégique 360° personnalisé, en quelques secondes.
           </p>
 
-          {/* Si connecté → formulaire, sinon → CTA login */}
-          {user ? (
-            <AuditForm />
-          ) : (
-            <div className="auth-cta">
-              <p className="auth-cta-text">
-                Connectez-vous pour lancer votre audit.
-              </p>
-              <div className="auth-cta-buttons">
-                <a href="/login" className="btn btn-primary" style={{ maxWidth: '220px' }}>
-                  🔑 Se connecter
-                </a>
-                <a href="/register" className="btn btn-secondary" style={{ maxWidth: '220px' }}>
-                  Créer un compte
-                </a>
-              </div>
-            </div>
-          )}
+          <AuditForm />
         </section>
 
         {/* Footer */}

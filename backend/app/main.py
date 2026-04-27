@@ -822,9 +822,9 @@ def delete_client(
     if not client:
         raise HTTPException(status_code=404, detail="Client non trouvé")
     
-    client.deleted_at = func.now()
+    client.deleted_at = sql_func.now()
     # On soft delete aussi ses audits pour être propre
-    db.query(Audit).filter(Audit.client_id == client_id).update({"deleted_at": func.now()})
+    db.query(Audit).filter(Audit.client_id == client_id).update({"deleted_at": sql_func.now()})
     
     db.commit()
     return {"status": "deleted", "client_id": client.id}
@@ -840,7 +840,7 @@ def delete_audit(
     if not audit:
         raise HTTPException(status_code=404, detail="Audit non trouvé")
     
-    audit.deleted_at = func.now()
+    audit.deleted_at = sql_func.now()
     db.commit()
     return {"status": "deleted", "audit_id": audit.id}
 

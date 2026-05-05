@@ -15,7 +15,7 @@ from sqlalchemy import func as sql_func
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import User, Client, Audit, MonthlyMetrics
+from app.models import User, Client, Audit, MonthlyMetrics, ClientGMBSettings, Review
 from app.auth import (
     hash_password,
     verify_password,
@@ -45,8 +45,17 @@ from app.schemas import (
     MonthlyMetricsCreate,
     MonthlyMetricsResponse,
     TrashItem,
+    GMBConfigRequest,
+    GMBConfigResponse,
+    GMBCallbackRequest,
+    GMBActiveClient,
+    ReviewCreateRequest,
+    ReviewResponse,
+    ReviewSuggestionResponse,
+    ReviewStats,
 )
 from app.services import apify_service, pagespeed_service, gemini_service, n8n_service
+from app.services import review_ai_service
 from app.scoring import calculate_scores
 
 # ============================================
@@ -952,3 +961,405 @@ def hard_delete_trash_item(
         
     db.commit()
     return {"status": "hard_deleted"}
+
+
+# ============================================
+# GMB AUTO-POSTER — Configuration (PROTÉGÉ ADMIN)
+# ============================================
+
+@app.get("/api/v1/gmb/config/{client_id}", response_model=GMBConfigResponse, tags=["GMB"])
+def get_gmb_config(
+    client_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Récupérer la configuration GMB Auto-Poster d'un client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    gmb = db.query(ClientGMBSettings).filter(ClientGMBSettings.client_id == client_id).first()
+
+    if not gmb:
+        # Créer une config par défaut
+        gmb = ClientGMBSettings(client_id=client_id)
+        db.add(gmb)
+        db.commit()
+        db.refresh(gmb)
+
+    return GMBConfigResponse(
+        id=gmb.id,
+        client_id=gmb.client_id,
+        company_name=client.company_name,
+        gmb_active=gmb.gmb_active or False,
+        mega_folder_url=gmb.mega_folder_url,
+        last_posted_index=gmb.last_posted_index or 0,
+        gmb_schedule=gmb.gmb_schedule,
+        gmb_location_id=gmb.gmb_location_id,
+        google_connected=gmb.google_connected or False,
+        created_at=gmb.created_at,
+    )
+
+
+@app.put("/api/v1/gmb/config/{client_id}", response_model=GMBConfigResponse, tags=["GMB"])
+def update_gmb_config(
+    client_id: int,
+    request: GMBConfigRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Enregistrer ou mettre à jour la configuration GMB d'un client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    gmb = db.query(ClientGMBSettings).filter(ClientGMBSettings.client_id == client_id).first()
+
+    if not gmb:
+        gmb = ClientGMBSettings(client_id=client_id)
+        db.add(gmb)
+
+    # Mettre à jour uniquement les champs fournis
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(gmb, key, value)
+
+    db.commit()
+    db.refresh(gmb)
+    logger.info(f"⚙️ Config GMB mise à jour pour client #{client_id} ({client.company_name})")
+
+    return GMBConfigResponse(
+        id=gmb.id,
+        client_id=gmb.client_id,
+        company_name=client.company_name,
+        gmb_active=gmb.gmb_active or False,
+        mega_folder_url=gmb.mega_folder_url,
+        last_posted_index=gmb.last_posted_index or 0,
+        gmb_schedule=gmb.gmb_schedule,
+        gmb_location_id=gmb.gmb_location_id,
+        google_connected=gmb.google_connected or False,
+        created_at=gmb.created_at,
+    )
+
+
+@app.get("/api/v1/gmb/clients/active", response_model=list[GMBActiveClient], tags=["GMB"])
+def get_gmb_active_clients(
+    db: Session = Depends(get_db),
+):
+    """Liste les clients avec GMB actif (appelé par n8n). Protégé par header secret."""
+    from fastapi import Request
+    # Note: la validation du secret se fait dans le workflow n8n via header
+    results = (
+        db.query(ClientGMBSettings, Client)
+        .join(Client, ClientGMBSettings.client_id == Client.id)
+        .filter(
+            ClientGMBSettings.gmb_active == True,
+            ClientGMBSettings.mega_folder_url.isnot(None),
+            Client.deleted_at.is_(None),
+        )
+        .all()
+    )
+
+    return [
+        GMBActiveClient(
+            client_id=gmb.client_id,
+            company_name=client.company_name,
+            mega_folder_url=gmb.mega_folder_url,
+            last_posted_index=gmb.last_posted_index or 0,
+            gmb_location_id=gmb.gmb_location_id,
+            gmb_schedule=gmb.gmb_schedule,
+        )
+        for gmb, client in results
+    ]
+
+
+@app.post("/api/v1/gmb/callback", tags=["GMB"])
+def gmb_publish_callback(
+    request: GMBCallbackRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Webhook appelé par n8n après une publication GMB réussie.
+    Incrémente le last_posted_index du client.
+    """
+    # Vérifier le secret
+    if request.secret != settings.N8N_CALLBACK_SECRET:
+        raise HTTPException(status_code=403, detail="Secret invalide")
+
+    gmb = db.query(ClientGMBSettings).filter(
+        ClientGMBSettings.client_id == request.client_id
+    ).first()
+
+    if not gmb:
+        raise HTTPException(status_code=404, detail="Config GMB non trouvée pour ce client")
+
+    gmb.last_posted_index = request.posted_index
+    db.commit()
+    logger.info(f"📡 GMB Callback : client #{request.client_id} — index mis à jour → {request.posted_index}")
+
+    return {"status": "updated", "client_id": request.client_id, "new_index": request.posted_index}
+
+
+# ============================================
+# REVIEWS — Avis Google + IA (PROTÉGÉ)
+# ============================================
+
+@app.get("/api/v1/reviews/global", response_model=list[ReviewResponse], tags=["Reviews"])
+def get_global_reviews(
+    skip: int = 0,
+    limit: int = 50,
+    rating_filter: int = None,
+    status_filter: str = None,
+    client_id: int = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Flux global de tous les avis (Vue Agence uniquement)."""
+    query = (
+        db.query(Review, Client.company_name)
+        .join(Client, Review.client_id == Client.id)
+        .filter(Client.deleted_at.is_(None))
+    )
+
+    if rating_filter is not None:
+        query = query.filter(Review.rating == rating_filter)
+    if status_filter:
+        query = query.filter(Review.reply_status == status_filter)
+    if client_id:
+        query = query.filter(Review.client_id == client_id)
+
+    results = (
+        query.order_by(Review.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        ReviewResponse(
+            id=review.id,
+            client_id=review.client_id,
+            company_name=company_name,
+            google_review_id=review.google_review_id,
+            author_name=review.author_name,
+            rating=review.rating,
+            text=review.text,
+            reply_suggestion=review.reply_suggestion,
+            reply_status=review.reply_status or "pending",
+            is_read=review.is_read or False,
+            language=review.language or "fr",
+            created_at=review.created_at,
+        )
+        for review, company_name in results
+    ]
+
+
+@app.get("/api/v1/reviews/stats", response_model=ReviewStats, tags=["Reviews"])
+def get_review_stats(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Statistiques globales des avis."""
+    total = db.query(sql_func.count(Review.id)).scalar()
+    avg = db.query(sql_func.avg(Review.rating)).scalar()
+    pending = db.query(sql_func.count(Review.id)).filter(Review.reply_status == "pending").scalar()
+    unread = db.query(sql_func.count(Review.id)).filter(Review.is_read == False).scalar()
+    low = db.query(sql_func.count(Review.id)).filter(Review.rating <= 2).scalar()
+
+    return ReviewStats(
+        total_reviews=total or 0,
+        avg_rating=round(avg, 1) if avg else None,
+        pending_replies=pending or 0,
+        unread_count=unread or 0,
+        low_rating_count=low or 0,
+    )
+
+
+@app.get("/api/v1/reviews/{client_id}", response_model=list[ReviewResponse], tags=["Reviews"])
+def get_client_reviews(
+    client_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Avis d'un client spécifique (accès client ou admin)."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    # Vérifier l'accès : admin ou propriétaire
+    if current_user.role != "admin" and client.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    reviews = (
+        db.query(Review)
+        .filter(Review.client_id == client_id)
+        .order_by(Review.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        ReviewResponse(
+            id=r.id,
+            client_id=r.client_id,
+            company_name=client.company_name,
+            google_review_id=r.google_review_id,
+            author_name=r.author_name,
+            rating=r.rating,
+            text=r.text,
+            reply_suggestion=r.reply_suggestion,
+            reply_status=r.reply_status or "pending",
+            is_read=r.is_read or False,
+            language=r.language or "fr",
+            created_at=r.created_at,
+        )
+        for r in reviews
+    ]
+
+
+@app.post("/api/v1/reviews", response_model=ReviewResponse, tags=["Reviews"])
+async def create_review(
+    request: ReviewCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Créer un avis reçu depuis n8n.
+    Génère automatiquement une suggestion IA via Gemini.
+    """
+    # Vérifier le secret
+    if request.secret != settings.N8N_CALLBACK_SECRET:
+        raise HTTPException(status_code=403, detail="Secret invalide")
+
+    # Vérifier que l'avis n'existe pas déjà
+    existing = db.query(Review).filter(Review.google_review_id == request.google_review_id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Cet avis existe déjà")
+
+    client = db.query(Client).filter(Client.id == request.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client non trouvé")
+
+    # Détecter la langue
+    from app.services.review_ai_service import detect_language
+    detected_lang = detect_language(request.text or "")
+
+    # Générer la suggestion IA
+    client_context = f"Entreprise : {client.company_name}"
+    if client.onboarding_data:
+        sector = client.onboarding_data.get("company_sector", "")
+        if sector:
+            client_context += f", Secteur : {sector}"
+
+    ai_result = await review_ai_service.generate_review_reply(
+        review_text=request.text or "",
+        rating=request.rating,
+        client_context=client_context,
+        language=detected_lang,
+    )
+
+    # Créer l'avis en DB
+    review = Review(
+        client_id=request.client_id,
+        google_review_id=request.google_review_id,
+        author_name=request.author_name,
+        rating=request.rating,
+        text=request.text,
+        reply_suggestion=ai_result.get("reply_suggestion"),
+        language=ai_result.get("language", detected_lang),
+    )
+    db.add(review)
+    db.commit()
+    db.refresh(review)
+    logger.info(f"⭐ Nouvel avis créé : #{review.id} — {request.author_name} ({request.rating}★) pour {client.company_name}")
+
+    return ReviewResponse(
+        id=review.id,
+        client_id=review.client_id,
+        company_name=client.company_name,
+        google_review_id=review.google_review_id,
+        author_name=review.author_name,
+        rating=review.rating,
+        text=review.text,
+        reply_suggestion=review.reply_suggestion,
+        reply_status=review.reply_status or "pending",
+        is_read=False,
+        language=review.language or "fr",
+        created_at=review.created_at,
+    )
+
+
+@app.patch("/api/v1/reviews/{review_id}/suggestion", response_model=ReviewSuggestionResponse, tags=["Reviews"])
+async def regenerate_review_suggestion(
+    review_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Régénérer la suggestion IA pour un avis."""
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Avis non trouvé")
+
+    client = db.query(Client).filter(Client.id == review.client_id).first()
+    client_context = f"Entreprise : {client.company_name}" if client else ""
+
+    if client and client.onboarding_data:
+        sector = client.onboarding_data.get("company_sector", "")
+        if sector:
+            client_context += f", Secteur : {sector}"
+
+    ai_result = await review_ai_service.generate_review_reply(
+        review_text=review.text or "",
+        rating=review.rating,
+        client_context=client_context,
+        language=review.language or "fr",
+    )
+
+    review.reply_suggestion = ai_result.get("reply_suggestion")
+    review.language = ai_result.get("language", review.language)
+    db.commit()
+    logger.info(f"🔄 Suggestion IA régénérée pour avis #{review_id}")
+
+    return ReviewSuggestionResponse(
+        review_id=review.id,
+        reply_suggestion=review.reply_suggestion,
+        language=review.language,
+    )
+
+
+@app.patch("/api/v1/reviews/{review_id}/read", tags=["Reviews"])
+def mark_review_read(
+    review_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marquer un avis comme lu."""
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Avis non trouvé")
+
+    review.is_read = True
+    db.commit()
+    return {"status": "read", "review_id": review_id}
+
+
+@app.patch("/api/v1/reviews/{review_id}/status", tags=["Reviews"])
+def update_review_status(
+    review_id: int,
+    status: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_admin_user),
+):
+    """Mettre à jour le statut de réponse d'un avis."""
+    if status not in ("pending", "replied", "dismissed"):
+        raise HTTPException(status_code=400, detail="Statut invalide")
+
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Avis non trouvé")
+
+    review.reply_status = status
+    db.commit()
+    return {"status": "updated", "review_id": review_id, "reply_status": status}

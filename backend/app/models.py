@@ -55,6 +55,8 @@ class Client(Base):
     user = relationship("User", back_populates="clients")
     audits = relationship("Audit", back_populates="client", cascade="all, delete-orphan")
     monthly_metrics = relationship("MonthlyMetrics", back_populates="client", cascade="all, delete-orphan")
+    gmb_settings = relationship("ClientGMBSettings", back_populates="client", uselist=False, cascade="all, delete-orphan")
+    reviews = relationship("Review", back_populates="client", cascade="all, delete-orphan")
 
 
 class Audit(Base):
@@ -129,4 +131,49 @@ class MonthlyMetrics(Base):
 
     # Relations
     client = relationship("Client", back_populates="monthly_metrics")
+
+
+class ClientGMBSettings(Base):
+    """Configuration GMB Auto-Poster par client."""
+    __tablename__ = "client_gmb_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), unique=True, nullable=False)
+    gmb_active = Column(Boolean, default=False)
+    mega_folder_url = Column(String(1000))
+    last_posted_index = Column(Integer, default=0)
+    gmb_schedule = Column(JSONB, default={"days": ["tuesday", "friday"], "time": "10:00"})
+    gmb_location_id = Column(String(255))
+    google_connected = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relations
+    client = relationship("Client", back_populates="gmb_settings")
+
+
+class Review(Base):
+    """Avis Google centralisés avec suggestions IA."""
+    __tablename__ = "reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    google_review_id = Column(String(255), unique=True)
+    author_name = Column(String(255))
+    rating = Column(Integer)
+    text = Column(Text)
+    reply_suggestion = Column(Text)
+    reply_status = Column(String(20), default="pending")
+    is_read = Column(Boolean, default=False)
+    language = Column(String(10), default="fr")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relations
+    client = relationship("Client", back_populates="reviews")
+
+    __table_args__ = (
+        CheckConstraint("rating >= 1 AND rating <= 5", name="check_review_rating"),
+        CheckConstraint("reply_status IN ('pending', 'replied', 'dismissed')", name="check_reply_status"),
+    )
+
 

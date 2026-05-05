@@ -281,3 +281,100 @@ class TrashItem(BaseModel):
     name: str       # company_name ou identifiant de l'audit
     deleted_at: datetime
     expires_in_days: int
+
+
+# ============================================
+# GMB AUTO-POSTER
+# ============================================
+
+class GMBConfigRequest(BaseModel):
+    """Requête de configuration GMB Auto-Poster."""
+    gmb_active: Optional[bool] = None
+    mega_folder_url: Optional[str] = None
+    gmb_schedule: Optional[dict] = None
+    gmb_location_id: Optional[str] = None
+    google_connected: Optional[bool] = None
+
+
+class GMBConfigResponse(BaseModel):
+    """Réponse de configuration GMB."""
+    id: int
+    client_id: int
+    company_name: str
+    gmb_active: bool = False
+    mega_folder_url: Optional[str] = None
+    last_posted_index: int = 0
+    gmb_schedule: Optional[dict] = None
+    gmb_location_id: Optional[str] = None
+    google_connected: bool = False
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GMBCallbackRequest(BaseModel):
+    """Payload du callback n8n après publication GMB."""
+    client_id: int
+    posted_index: int
+    secret: str = Field(..., description="Token de sécurité n8n")
+
+
+class GMBActiveClient(BaseModel):
+    """Client actif pour le workflow n8n."""
+    client_id: int
+    company_name: str
+    mega_folder_url: str
+    last_posted_index: int
+    gmb_location_id: Optional[str] = None
+    gmb_schedule: Optional[dict] = None
+
+
+# ============================================
+# REVIEWS — Avis Google + IA
+# ============================================
+
+class ReviewCreateRequest(BaseModel):
+    """Création d'un avis (reçu depuis n8n)."""
+    client_id: int
+    google_review_id: str
+    author_name: str
+    rating: int = Field(..., ge=1, le=5)
+    text: Optional[str] = None
+    secret: str = Field(..., description="Token de sécurité n8n")
+
+
+class ReviewResponse(BaseModel):
+    """Réponse d'un avis avec nom du client."""
+    id: int
+    client_id: int
+    company_name: str
+    google_review_id: Optional[str] = None
+    author_name: Optional[str] = None
+    rating: int
+    text: Optional[str] = None
+    reply_suggestion: Optional[str] = None
+    reply_status: str = "pending"
+    is_read: bool = False
+    language: str = "fr"
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReviewSuggestionResponse(BaseModel):
+    """Réponse avec suggestion IA régénérée."""
+    review_id: int
+    reply_suggestion: str
+    language: str
+
+
+class ReviewStats(BaseModel):
+    """Statistiques des avis (pour le dashboard)."""
+    total_reviews: int = 0
+    avg_rating: Optional[float] = None
+    pending_replies: int = 0
+    unread_count: int = 0
+    low_rating_count: int = 0
+

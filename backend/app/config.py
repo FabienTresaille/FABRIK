@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # --- n8n Interne ---
     N8N_INTERNAL_WEBHOOK: str = "http://fabrik-n8n:5678/webhook/audit-complete"
+    N8N_CALLBACK_SECRET: str = ""
 
     # --- Authentification JWT ---
     JWT_ALGORITHM: str = "HS256"

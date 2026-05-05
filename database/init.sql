@@ -116,6 +116,47 @@ CREATE INDEX IF NOT EXISTS idx_monthly_metrics_client ON monthly_metrics(client_
 CREATE INDEX IF NOT EXISTS idx_monthly_metrics_month ON monthly_metrics(month);
 
 -- ==============================================
+-- TABLE : CLIENT_GMB_SETTINGS (Config GMB Auto-Poster)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS client_gmb_settings (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER UNIQUE NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    gmb_active BOOLEAN DEFAULT FALSE,
+    mega_folder_url VARCHAR(1000),
+    last_posted_index INTEGER DEFAULT 0,
+    gmb_schedule JSONB DEFAULT '{"days": ["tuesday", "friday"], "time": "10:00"}',
+    gmb_location_id VARCHAR(255),
+    google_connected BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_gmb_settings_client ON client_gmb_settings(client_id);
+
+-- ==============================================
+-- TABLE : REVIEWS (Avis Google centralisés + IA)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS reviews (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    google_review_id VARCHAR(255) UNIQUE,
+    author_name VARCHAR(255),
+    rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+    text TEXT,
+    reply_suggestion TEXT,
+    reply_status VARCHAR(20) DEFAULT 'pending'
+        CHECK (reply_status IN ('pending', 'replied', 'dismissed')),
+    is_read BOOLEAN DEFAULT FALSE,
+    language VARCHAR(10) DEFAULT 'fr',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_client ON reviews(client_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_google_id ON reviews(google_review_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating);
+
+-- ==============================================
 -- Note : Le compte admin est créé automatiquement
 -- via l'inscription avec l'email admin@alsek.fr
 -- Il recevra automatiquement le rôle 'admin' et sera actif immédiatement.

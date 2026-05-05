@@ -44,6 +44,12 @@ export default function DashboardSidebar() {
       </div>
 
       <div className="dash-sidebar-section">
+        <div className="dash-sidebar-label">ACQUISITION</div>
+        <NavItem href="/dashboard/gmb" icon="📡" label="GMB Auto-Poster" active={pathname === '/dashboard/gmb'} />
+        <NavItem href="/dashboard/reviews" icon="⭐" label="Avis Google" active={pathname === '/dashboard/reviews'} />
+      </div>
+
+      <div className="dash-sidebar-section">
         <div className="dash-sidebar-label">OUTILS</div>
         <NavItem href="/" icon="🔍" label="Nouvel audit" active={false} />
         <NavItem href="/admin" icon="⚙️" label="Administration" active={false} />
